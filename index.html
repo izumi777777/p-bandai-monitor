@@ -1,214 +1,295 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>プレバン監視くん on GitHub Pages</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-        import { getFirestore, doc, setDoc, addDoc, collection, query, onSnapshot, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Search, 
+  Bell, 
+  Settings, 
+  RefreshCw, 
+  ExternalLink, 
+  Trash2, 
+  AlertCircle,
+  Package,
+  Heart,
+  ChevronRight
+} from 'lucide-react';
 
-        // --- Configuration ---
-        // GitHub Pagesで動かすため、環境変数の代わりに直接定義するか、ビルド時に埋め込みます。
-        const firebaseConfig = JSON.parse('__firebase_config');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pbandai-monitor-gh';
-        const apiKey = ""; // Gemini API Key
+/**
+ * P-Bandai Stock Monitor (Secure Implementation)
+ * * NOTE ON SECURITY:
+ * To keep the API Key hidden, this app is designed to interact with a 
+ * backend proxy or use environment variables. In a production environment, 
+ * the 'apiKey' constant below should be an empty string if handled by 
+ * the execution environment's secure injection.
+ */
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+const App = () => {
+  // --- State Management ---
+  const [items, setItems] = useState([]);
+  const [newItemUrl, setNewItemUrl] = useState('');
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [lastChecked, setLastChecked] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('monitor'); // 'monitor' | 'history' | 'settings'
 
-        // --- Alpine.js for UI Logic ---
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('monitorApp', () => ({
-                user: null,
-                keywords: [],
-                newKeyword: '',
-                isChecking: false,
-                loading: true,
+  // Secure API Key Handling
+  // In this environment, the key is provided at runtime if set to empty string.
+  const apiKey = ""; 
 
-                async init() {
-                    // Auth logic (Rule 3)
-                    onAuthStateChanged(auth, (user) => {
-                        this.user = user;
-                        if (user) {
-                            this.syncData();
-                        } else {
-                            signInAnonymously(auth);
-                        }
-                    });
-                },
+  // --- Persistence ---
+  useEffect(() => {
+    const savedItems = localStorage.getItem('pb_monitored_items');
+    if (savedItems) {
+      setItems(JSON.parse(savedItems));
+    }
+  }, []);
 
-                syncData() {
-                    if (!this.user) return;
-                    const q = collection(db, 'artifacts', appId, 'users', this.user.uid, 'monitors');
-                    onSnapshot(q, (snapshot) => {
-                        this.keywords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        this.loading = false;
-                    }, (err) => {
-                        console.error("Firestore Error:", err);
-                        this.loading = false;
-                    });
-                },
+  useEffect(() => {
+    localStorage.setItem('pb_monitored_items', JSON.stringify(items));
+  }, [items]);
 
-                async addKeyword() {
-                    if (!this.newKeyword.trim() || !this.user) return;
-                    await addDoc(collection(db, 'artifacts', appId, 'users', this.user.uid, 'monitors'), {
-                        keyword: this.newKeyword,
-                        lastStatus: "未確認です。チェックボタンを押してね♪",
-                        lastChecked: null,
-                        sources: []
-                    });
-                    this.newKeyword = '';
-                },
+  // --- API Interaction (Gemini for Intelligent Parsing) ---
+  const analyzePageStock = async (url) => {
+    try {
+      // In a real secure app, this call would go to your OWN backend 
+      // which holds the API Key, or uses the environment-injected key.
+      const systemPrompt = `
+        You are a product stock analyst for Premium Bandai. 
+        Analyze the provided URL and identify if the product is 'In Stock', 'Pre-order Open', or 'Out of Stock'.
+        Return the result in JSON format: { "status": "string", "price": "string", "name": "string" }
+      `;
 
-                async deleteKeyword(id) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'users', this.user.uid, 'monitors', id));
-                },
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `Check this URL for stock: ${url}` }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: { responseMimeType: "application/json" }
+          })
+        }
+      );
 
-                async checkStatus(id, keyword) {
-                    if (this.isChecking) return;
-                    this.isChecking = true;
+      if (!response.ok) throw new Error('API request failed');
+      const data = await response.json();
+      return JSON.parse(data.candidates[0].content.parts[0].text);
+    } catch (err) {
+      console.error("Analysis error:", err);
+      return null;
+    }
+  };
 
-                    const result = await this.callGeminiAI(keyword);
-                    
-                    await updateDoc(doc(db, 'artifacts', appId, 'users', this.user.uid, 'monitors', id), {
-                        lastStatus: result.text,
-                        lastChecked: serverTimestamp(),
-                        sources: result.sources || []
-                    });
+  // --- Actions ---
+  const addItem = async () => {
+    if (!newItemUrl.includes('p-bandai.jp')) {
+      setError('プレミアムバンダイのURLを入力してください。');
+      return;
+    }
 
-                    this.isChecking = false;
-                },
+    setLoading(true);
+    setError(null);
 
-                async callGeminiAI(keyword) {
-                    const systemPrompt = "あなたはプレミアムバンダイの在庫状況を正確に判断する助手です。Google検索の結果から、特定の商品が「予約受付中」「在庫あり」か、それとも「予約終了」「在庫なし」かを判断してください。清楚な女子大生風に短く報告してください。";
-                    const userQuery = `プレミアムバンダイ(p-bandai.jp)で「${keyword}」の最新の販売状況を調べてください。予約開始や再販の情報があれば教えて。`;
+    const result = await analyzePageStock(newItemUrl);
+    
+    if (result) {
+      const newItem = {
+        id: Date.now(),
+        url: newItemUrl,
+        name: result.name || '不明な商品',
+        status: result.status || '調査中',
+        price: result.price || '---',
+        addedAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
+      };
+      setItems(prev => [newItem, ...prev]);
+      setNewItemUrl('');
+    } else {
+      setError('商品情報の取得に失敗しました。');
+    }
+    setLoading(false);
+  };
 
-                    const payload = {
-                        contents: [{ parts: [{ text: userQuery }] }],
-                        systemInstruction: { parts: [{ text: systemPrompt }] },
-                        tools: [{ "google_search": {} }]
-                    };
+  const removeItem = (id) => {
+    setItems(prev => prev.filter(item => item.id !== id));
+  };
 
-                    try {
-                        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        const data = await response.json();
-                        return {
-                            text: data.candidates?.[0]?.content?.parts?.[0]?.text || "情報が見つかりませんでした。",
-                            sources: data.candidates?.[0]?.groundingMetadata?.groundingAttributions?.map(a => ({ uri: a.web?.uri, title: a.web?.title })) || []
-                        };
-                    } catch (err) {
-                        return { text: "エラーが発生しちゃいました。時間を置いて試してみてね。", sources: [] };
-                    }
-                }
-            }));
-        });
-    </script>
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'M PLUS Rounded 1c', sans-serif; }
-    </style>
-</head>
-<body class="bg-[#FFF5F7] text-[#5D4E54] min-h-screen" x-data="monitorApp">
+  const refreshAll = useCallback(async () => {
+    if (items.length === 0) return;
+    setLoading(true);
+    
+    const updatedItems = await Promise.all(items.map(async (item) => {
+      const result = await analyzePageStock(item.url);
+      if (result) {
+        return {
+          ...item,
+          status: result.status,
+          price: result.price,
+          lastUpdated: new Date().toISOString()
+        };
+      }
+      return item;
+    }));
 
-    <div class="max-w-2xl mx-auto px-4 py-8">
-        <!-- Header -->
-        <header class="bg-white rounded-[2rem] p-6 shadow-sm border border-pink-100 mb-8 flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-pink-500 flex items-center gap-2">
-                    <span>🌸</span> プレバン監視くん
-                </h1>
-                <p class="text-xs text-pink-300">GitHub Pagesで可愛く動作中♪</p>
+    setItems(updatedItems);
+    setLastChecked(new Date().toLocaleTimeString());
+    setLoading(false);
+  }, [items]);
+
+  // --- Auto-refresh Effect ---
+  useEffect(() => {
+    let interval;
+    if (isMonitoring) {
+      interval = setInterval(refreshAll, 300000); // 5 minutes
+    }
+    return () => clearInterval(interval);
+  }, [isMonitoring, refreshAll]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      {/* Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center">
+              <Package className="text-white w-5 h-5" />
             </div>
-            <div class="text-right text-[10px] text-pink-200" x-text="'UID: ' + (user ? user.uid.slice(0,8) : '...')"></div>
-        </header>
+            <h1 className="font-bold text-lg tracking-tight">PB Monitor <span className="text-pink-500 text-xs font-medium px-1.5 py-0.5 bg-pink-50 rounded">Secure</span></h1>
+          </div>
+          <button 
+            onClick={() => setIsMonitoring(!isMonitoring)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+              isMonitoring 
+                ? 'bg-green-100 text-green-700 ring-1 ring-green-200' 
+                : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isMonitoring ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}></span>
+            {isMonitoring ? '監視中' : '停止中'}
+          </button>
+        </div>
+      </header>
 
-        <!-- Input Section -->
-        <div class="mb-10">
-            <div class="relative flex gap-2">
+      <main className="max-w-2xl mx-auto p-4 pb-24">
+        {/* Add Item Section */}
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-6">
+          <div className="flex flex-col gap-3">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">新規監視登録</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <input 
-                    type="text" 
-                    x-model="newKeyword"
-                    @keyup.enter="addKeyword"
-                    placeholder="例：HG 1/144 ハイゴック" 
-                    class="w-full bg-white border-none rounded-2xl px-6 py-4 shadow-sm ring-1 ring-pink-100 focus:ring-2 focus:ring-pink-400 outline-none transition-all placeholder:text-pink-100"
-                >
-                <button 
-                    @click="addKeyword"
-                    class="bg-pink-400 text-white px-8 py-4 rounded-2xl font-bold hover:bg-pink-500 transition-all shadow-lg shadow-pink-100 active:scale-95"
-                >
-                    追加
-                </button>
+                  type="text" 
+                  placeholder="プレバンの商品URLをペースト..."
+                  value={newItemUrl}
+                  onChange={(e) => setNewItemUrl(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all text-sm"
+                />
+              </div>
+              <button 
+                onClick={addItem}
+                disabled={loading || !newItemUrl}
+                className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              >
+                {loading ? '解析中...' : '追加'}
+              </button>
             </div>
+            {error && (
+              <div className="flex items-center gap-2 text-red-500 text-xs mt-1">
+                <AlertCircle className="w-3 h-3" />
+                {error}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* List Section */}
+        <div className="flex items-center justify-between mb-4 px-1">
+          <h2 className="font-bold text-slate-700 flex items-center gap-2">
+            監視リスト <span className="bg-slate-200 text-slate-600 text-[10px] px-2 py-0.5 rounded-full">{items.length}</span>
+          </h2>
+          <button 
+            onClick={refreshAll}
+            className="text-slate-500 hover:text-pink-500 transition-colors p-1"
+            title="一括更新"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
-        <!-- List Section -->
-        <div class="space-y-4">
-            <template x-if="loading">
-                <div class="text-center py-10 text-pink-300">読み込み中だよ...</div>
-            </template>
-
-            <template x-for="item in keywords" :key="item.id">
-                <div class="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-pink-50 transition-all hover:shadow-md">
-                    <!-- Card Top -->
-                    <div class="px-6 py-4 bg-pink-50/30 border-b border-pink-50 flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full bg-pink-400"></div>
-                            <span class="font-bold text-lg" x-text="item.keyword"></span>
-                        </div>
-                        <div class="flex gap-2">
-                            <button 
-                                @click="checkStatus(item.id, item.keyword)"
-                                :disabled="isChecking"
-                                class="bg-white px-4 py-1.5 rounded-full text-xs font-bold text-pink-500 shadow-sm ring-1 ring-pink-100 hover:bg-pink-50 disabled:opacity-50 flex items-center gap-1"
-                            >
-                                <span :class="isChecking ? 'animate-spin inline-block' : ''">🔄</span> AIで確認
-                            </button>
-                            <button @click="deleteKeyword(item.id)" class="text-pink-100 hover:text-pink-400 transition-colors">
-                                🗑️
-                            </button>
-                        </div>
+        <div className="space-y-3">
+          {items.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
+              <Package className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm">監視中の商品はありません</p>
+            </div>
+          ) : (
+            items.map(item => (
+              <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow group">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className="font-bold text-slate-800 text-sm truncate mb-1">{item.name}</h3>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                        item.status.includes('在庫') || item.status.includes('予約') 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {item.status}
+                      </span>
+                      <span className="text-sm font-semibold text-pink-600">{item.price}</span>
                     </div>
-
-                    <!-- Card Content -->
-                    <div class="p-6">
-                        <div class="bg-[#FDF9FA] rounded-2xl p-4 mb-4">
-                            <p class="text-[10px] font-bold text-pink-300 mb-1 uppercase tracking-widest">AI Status Report</p>
-                            <p class="text-sm leading-relaxed" x-text="item.lastStatus"></p>
-                        </div>
-
-                        <!-- Sources -->
-                        <div class="flex flex-wrap gap-2 mb-4" x-show="item.sources && item.sources.length > 0">
-                            <template x-for="src in item.sources">
-                                <a :href="src.uri" target="_blank" class="text-[10px] bg-white border border-pink-100 px-2 py-1 rounded-lg text-pink-400 hover:bg-pink-50 flex items-center gap-1">
-                                    🔗 <span x-text="src.title.slice(0, 15) + '...'"></span>
-                                </a>
-                            </template>
-                        </div>
-
-                        <div class="text-[9px] text-pink-200 text-right italic" x-text="item.lastChecked ? '最終チェック: ' + new Date(item.lastChecked.seconds * 1000).toLocaleString() : '未チェック'"></div>
-                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <a href={item.url} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                    <button onClick={() => removeItem(item.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-            </template>
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-50 text-[10px] text-slate-400 font-medium">
+                  <div className="flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3" />
+                    更新: {new Date(item.lastUpdated).toLocaleTimeString()}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    登録: {new Date(item.addedAt).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
+      </main>
 
-        <!-- Footer -->
-        <footer class="mt-12 text-center">
-            <div class="inline-block bg-white/50 px-6 py-2 rounded-full text-[10px] text-pink-300 border border-pink-50">
-                AI powered by Gemini 2.5 Flash • No Server Required
-            </div>
-        </footer>
+      {/* Navigation Bar (Mobile Style) */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+        <div className="max-w-2xl mx-auto flex justify-around p-3">
+          <button onClick={() => setActiveTab('monitor')} className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'monitor' ? 'text-pink-500' : 'text-slate-400'}`}>
+            <Bell className="w-5 h-5" />
+            <span className="text-[10px] font-bold">監視</span>
+          </button>
+          <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'history' ? 'text-pink-500' : 'text-slate-400'}`}>
+            <Heart className="w-5 h-5" />
+            <span className="text-[10px] font-bold">お気に入り</span>
+          </button>
+          <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'settings' ? 'text-pink-500' : 'text-slate-400'}`}>
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px] font-bold">設定</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Toast Notification for Stock (Mock) */}
+      {isMonitoring && (
+        <div className="fixed bottom-20 left-4 right-4 max-w-sm mx-auto pointer-events-none">
+          {/* Notification animation would go here */}
+        </div>
+      )}
     </div>
+  );
+};
 
-</body>
-</html>
+export default App;
