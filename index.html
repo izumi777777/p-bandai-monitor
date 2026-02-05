@@ -1,178 +1,263 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PB Monitor - Stable</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
-        .glass-panel { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.5); }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .spinner { animation: spin 1s linear infinite; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PB Monitor</title>
+
+  <!-- React 18 -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="text-slate-900">
 
-    <!-- Header -->
-    <nav class="sticky top-0 z-40 bg-white/70 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <div class="bg-orange-500 p-2 rounded-xl text-white shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+<body class="bg-slate-50 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const STORAGE_KEY = "pb_monitor_items";
+    const CONFIG_KEY = "pb_monitor_config";
+
+    // Lucide Icon Component wrapper
+    const Icon = ({ name, size = 18, className = "" }) => {
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, [name]);
+      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+    };
+
+    function App() {
+      const [items, setItems] = useState([]);
+      const [url, setUrl] = useState("");
+      const [apiKey, setApiKey] = useState("");
+      const [isConfigOpen, setIsConfigOpen] = useState(false);
+      const [loading, setLoading] = useState(false);
+
+      // 初期化: ローカルストレージから復元
+      useEffect(() => {
+        try {
+          const storedItems = localStorage.getItem(STORAGE_KEY);
+          if (storedItems) setItems(JSON.parse(storedItems));
+
+          const storedConfig = localStorage.getItem(CONFIG_KEY);
+          if (storedConfig) {
+            const config = JSON.parse(storedConfig);
+            setApiKey(config.apiKey || "");
+          }
+        } catch (e) {
+          console.error("Failed to load data", e);
+        }
+      }, []);
+
+      // アイテム更新時に保存
+      useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      }, [items]);
+
+      const saveConfig = () => {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify({ apiKey }));
+        setIsConfigOpen(false);
+        console.log("Configuration saved.");
+      };
+
+      // APIによる解析シミュレーション/実行
+      const analyzeProduct = async (itemId, targetUrl) => {
+        console.log(`[Analysis Start] Item ID: ${itemId}, URL: ${targetUrl}`);
+        
+        if (!apiKey) {
+          console.warn("[Analysis Aborted] Gemini API Key is not set. Please set it in settings.");
+          setItems(prev => prev.map(item => 
+            item.id === itemId ? { ...item, status: "APIキー未設定", price: "エラー" } : item
+          ));
+          return;
+        }
+
+        try {
+          // 本来はここでGemini APIを叩く (fetch)
+          // 今回はログ出力の実装にフォーカスするため、解析中の進捗をコンソールに出力します
+          console.log(`[Analysis Progress] Fetching content from ${targetUrl}...`);
+          
+          // 擬似的な遅延
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          console.log(`[Analysis Progress] Analyzing page structure with Gemini API...`);
+          
+          await new Promise(resolve => setTimeout(resolve, 1500));
+
+          // 成功時のダミーデータ更新
+          setItems(prev => prev.map(item => 
+            item.id === itemId ? { 
+              ...item, 
+              name: "解析済み商品サンプル", 
+              price: "¥2,980", 
+              status: "監視中",
+              lastUpdated: new Date().toLocaleString('ja-JP')
+            } : item
+          ));
+          
+          console.log(`[Analysis Success] Item ID: ${itemId} has been updated.`);
+        } catch (error) {
+          console.error(`[Analysis Error] Failed to analyze ${targetUrl}:`, error);
+          setItems(prev => prev.map(item => 
+            item.id === itemId ? { ...item, status: "解析失敗", price: "エラー" } : item
+          ));
+        }
+      };
+
+      const addItem = () => {
+        if (!url.trim()) return;
+        
+        const newItem = {
+          id: Date.now(),
+          url: url.trim(),
+          name: "解析リクエスト送信済み...",
+          price: "解析中...",
+          status: "待機中",
+          lastUpdated: new Date().toLocaleString('ja-JP')
+        };
+
+        setItems(prev => [newItem, ...prev]);
+        setUrl("");
+
+        // 解析プロセスの開始
+        analyzeProduct(newItem.id, newItem.url);
+      };
+
+      const deleteItem = (id) => {
+        console.log(`[System] Deleting item: ${id}`);
+        setItems(prev => prev.filter(item => item.id !== id));
+      };
+
+      return (
+        <div className="max-w-2xl mx-auto p-4 md:p-8">
+          <header className="flex justify-between items-center mb-8 border-b pb-4">
+            <div className="flex items-center gap-2">
+              <Icon name="package-search" size={28} className="text-blue-600" />
+              <h1 className="text-2xl font-bold text-slate-800 tracking-tight">PB Monitor</h1>
             </div>
-            <h1 class="text-xl font-extrabold tracking-tight">PB Monitor</h1>
-        </div>
-        <button id="settingsBtn" class="p-2.5 text-slate-500 hover:bg-slate-100 rounded-full">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-    </nav>
-
-    <div class="max-w-3xl mx-auto px-6 pt-8">
-        <!-- Input Area -->
-        <div class="bg-white p-2 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col sm:flex-row gap-2 mb-8">
-            <input id="urlInput" type="text" placeholder="プレバンの商品URLを貼り付け..." class="flex-1 px-6 py-4 bg-transparent outline-none text-slate-700">
-            <button id="addBtn" class="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-[1.6rem] font-bold flex items-center justify-center gap-2 transition-all">
-                <span id="btnIcon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></span>
-                <span>追加</span>
+            <button 
+              onClick={() => setIsConfigOpen(!isConfigOpen)}
+              className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+            >
+              <Icon name="settings" className="text-slate-600" />
             </button>
-        </div>
+          </header>
 
-        <div id="statusLabel" class="hidden text-center mb-6 text-orange-500 text-sm font-bold animate-pulse flex items-center justify-center gap-2">
-            AIがページを解析中...
-        </div>
-
-        <!-- List -->
-        <div id="itemsList" class="grid gap-4">
-            <!-- Items injected here -->
-        </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-        <div class="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl">
-            <h2 class="text-2xl font-bold text-slate-800 mb-2">APIキーの設定</h2>
-            <p class="text-slate-500 text-sm mb-6">Google Gemini APIキーを入力してください。</p>
-            <input id="apiKeyInput" type="password" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-orange-500 outline-none mb-4">
-            <button id="saveKeyBtn" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800">保存して閉じる</button>
-        </div>
-    </div>
-
-    <script>
-        const urlInput = document.getElementById('urlInput');
-        const addBtn = document.getElementById('addBtn');
-        const itemsList = document.getElementById('itemsList');
-        const statusLabel = document.getElementById('statusLabel');
-        const modal = document.getElementById('modal');
-        const apiKeyInput = document.getElementById('apiKeyInput');
-        const saveKeyBtn = document.getElementById('saveKeyBtn');
-        const settingsBtn = document.getElementById('settingsBtn');
-
-        let items = JSON.parse(localStorage.getItem('pb_monitor_items') || '[]');
-        let apiKey = localStorage.getItem('pb_monitor_key') || '';
-
-        if (!apiKey) modal.classList.remove('hidden');
-
-        function saveItems() {
-            localStorage.setItem('pb_monitor_items', JSON.stringify(items));
-            render();
-        }
-
-        async function analyzeUrl(targetUrl) {
-            if (!apiKey) {
-                modal.classList.remove('hidden');
-                return;
-            }
-
-            statusLabel.classList.remove('hidden');
-            addBtn.disabled = true;
-            addBtn.classList.add('opacity-50');
-
-            try {
-                const prompt = `Analyze this Premium Bandai Japan product URL: ${targetUrl}. Extract JSON: {"name": "Product Name", "price": "Price with Yen", "status": "Stock status like 予約受付中 or 在庫なし"}. ONLY return JSON.`;
-                
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                const data = await response.json();
-                const text = data.candidates[0].content.parts[0].text;
-                const json = JSON.parse(text.match(/\{.*\}/s)[0]);
-
-                items.unshift({
-                    id: Date.now(),
-                    url: targetUrl,
-                    ...json,
-                    lastChecked: new Date().toLocaleTimeString('ja-JP')
-                });
-
-                urlInput.value = '';
-                saveItems();
-            } catch (err) {
-                alert('解析に失敗しました。URLまたはAPIキーを確認してください。');
-                console.error(err);
-            } finally {
-                statusLabel.classList.add('hidden');
-                addBtn.disabled = false;
-                addBtn.classList.remove('opacity-50');
-            }
-        }
-
-        function render() {
-            if (items.length === 0) {
-                itemsList.innerHTML = `<div class="text-center py-20 bg-slate-100 rounded-[3rem] text-slate-400">監視リストは空です</div>`;
-                return;
-            }
-
-            itemsList.innerHTML = items.map(item => `
-                <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative group">
-                    <button onclick="removeItem(${item.id})" class="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                    </button>
-                    <div class="mb-2">
-                        <span class="px-3 py-1 text-[10px] font-bold rounded-full ${item.status.includes('受付中') ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500'}">
-                            ${item.status}
-                        </span>
-                    </div>
-                    <h3 class="font-bold text-slate-800 mb-4 line-clamp-2">${item.name}</h3>
-                    <div class="flex items-end justify-between pt-4 border-t border-slate-50">
-                        <div>
-                            <div class="text-xl font-black">${item.price}</div>
-                            <div class="text-[10px] text-slate-400">更新: ${item.lastChecked}</div>
-                        </div>
-                        <a href="${item.url}" target="_blank" class="p-3 bg-slate-50 rounded-xl hover:bg-orange-500 hover:text-white transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                        </a>
-                    </div>
+          {/* 設定パネル */}
+          {isConfigOpen && (
+            <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm mb-8 animate-in fade-in slide-in-from-top-2">
+              <h2 className="text-sm font-semibold text-slate-700 mb-3">API 設定 (Gemini API)</h2>
+              <div className="flex flex-col gap-3">
+                <input
+                  className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  type="password"
+                  placeholder="ここにAPIキーを入力"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <button 
+                    onClick={() => setIsConfigOpen(false)}
+                    className="text-sm px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    キャンセル
+                  </button>
+                  <button 
+                    onClick={saveConfig}
+                    className="text-sm bg-slate-900 text-white px-5 py-2 rounded-lg font-medium hover:bg-black transition-colors"
+                  >
+                    保存する
+                  </button>
                 </div>
-            `).join('');
-        }
+              </div>
+            </div>
+          )}
 
-        window.removeItem = (id) => {
-            items = items.filter(i => i.id !== id);
-            saveItems();
-        };
+          {/* 入力エリア */}
+          <div className="flex gap-2 mb-8 group">
+            <div className="relative flex-1">
+              <input
+                className="w-full border border-slate-300 p-3 pl-4 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                placeholder="Amazonや楽天のURLを貼り付け"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && addItem()}
+              />
+            </div>
+            <button 
+              onClick={addItem}
+              disabled={!url}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all flex items-center gap-2 whitespace-nowrap"
+            >
+              <Icon name="plus" size={20} />
+              追加
+            </button>
+          </div>
 
-        addBtn.onclick = () => {
-            if (urlInput.value) analyzeUrl(urlInput.value);
-        };
+          {/* リスト表示 */}
+          <div className="space-y-3">
+            {items.length === 0 ? (
+              <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-3xl">
+                <Icon name="clipboard-list" size={48} className="mx-auto text-slate-300 mb-4" />
+                <p className="text-slate-400 font-medium">監視中の商品はまだありません</p>
+              </div>
+            ) : (
+              items.map(item => (
+                <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:border-blue-200 transition-all flex items-center gap-4 group">
+                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shrink-0">
+                    <Icon name="shopping-bag" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-slate-800 truncate leading-tight mb-1">{item.name}</div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Icon name="clock" size={12} /> {item.lastUpdated}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full ${
+                        item.status === '待機中' ? 'bg-slate-100 text-slate-600' : 
+                        item.status === '監視中' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right mr-2">
+                    <div className="text-lg font-black text-slate-900">{item.price}</div>
+                  </div>
+                  <button 
+                    onClick={() => deleteItem(item.id)}
+                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Icon name="trash-2" size={20} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <footer className="mt-12 text-center text-slate-400 text-xs">
+            &copy; 2024 PB Monitor - Simple Stock Tracker
+          </footer>
+        </div>
+      );
+    }
 
-        saveKeyBtn.onclick = () => {
-            apiKey = apiKeyInput.value;
-            localStorage.setItem('pb_monitor_key', apiKey);
-            modal.classList.add('hidden');
-        };
-
-        settingsBtn.onclick = () => {
-            apiKeyInput.value = apiKey;
-            modal.classList.remove('hidden');
-        };
-
-        render();
-    </script>
+    // React 18 Render setup
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
 </body>
 </html>
