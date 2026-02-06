@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PB Monitor</title>
+  <title>PB Monitor (Azure OpenAI)</title>
 
   <!-- React 18 -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -14,247 +14,328 @@
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
-<body class="bg-slate-50 min-h-screen">
+<body class="bg-slate-50 min-h-screen font-sans">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useCallback } = React;
+    const { useState, useEffect } = React;
 
-    const STORAGE_KEY = "pb_monitor_items";
-    const CONFIG_KEY = "pb_monitor_config";
+    const STORAGE_ITEMS = "pb_monitor_items_azure";
+    const STORAGE_CONFIG = "pb_azure_config";
 
-    // Lucide Icon Component wrapper
-    const Icon = ({ name, size = 18, className = "" }) => {
-      useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
-      }, [name]);
-      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+    const Icon = {
+      Plus: () => (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      ),
+      Trash: () => (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M3 6h18M8 6v14m8-14v14M5 6l1-3h12l1 3" />
+        </svg>
+      ),
+      Gear: () => (
+        <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z"/>
+          <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.7l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.7-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.7.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.7 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.7.3a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v-.1a1.6 1.6 0 0 0 1.0 1.5 1.6 1.6 0 0 0 1.7-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.7 1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>
+        </svg>
+      ),
+      Refresh: () => (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      ),
+      Download: () => (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+      )
     };
 
     function App() {
       const [items, setItems] = useState([]);
       const [url, setUrl] = useState("");
-      const [apiKey, setApiKey] = useState("");
-      const [isConfigOpen, setIsConfigOpen] = useState(false);
       const [loading, setLoading] = useState(false);
+      const [error, setError] = useState("");
+      const [showConfig, setShowConfig] = useState(false);
 
-      // 初期化: ローカルストレージから復元
+      const [config, setConfig] = useState({
+        endpoint: "https://test-ms-ai-japaneast-structure.openai.azure.com/",
+        apiKey: "",
+        deploymentName: "test-ms-gpt4o-structure",
+        apiVersion: "2024-12-01-preview"
+      });
+
       useEffect(() => {
-        try {
-          const storedItems = localStorage.getItem(STORAGE_KEY);
-          if (storedItems) setItems(JSON.parse(storedItems));
-
-          const storedConfig = localStorage.getItem(CONFIG_KEY);
-          if (storedConfig) {
-            const config = JSON.parse(storedConfig);
-            setApiKey(config.apiKey || "");
-          }
-        } catch (e) {
-          console.error("Failed to load data", e);
+        const savedItems = localStorage.getItem(STORAGE_ITEMS);
+        const savedConfig = localStorage.getItem(STORAGE_CONFIG);
+        if (savedItems) setItems(JSON.parse(savedItems));
+        
+        if (savedConfig) {
+          setConfig(JSON.parse(savedConfig));
+        } else {
+          setShowConfig(true);
         }
       }, []);
 
-      // アイテム更新時に保存
       useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        localStorage.setItem(STORAGE_ITEMS, JSON.stringify(items));
       }, [items]);
 
       const saveConfig = () => {
-        localStorage.setItem(CONFIG_KEY, JSON.stringify({ apiKey }));
-        setIsConfigOpen(false);
-        console.log("Configuration saved.");
+        localStorage.setItem(STORAGE_CONFIG, JSON.stringify(config));
+        setShowConfig(false);
+        setError("");
       };
 
-      // APIによる解析シミュレーション/実行
-      const analyzeProduct = async (itemId, targetUrl) => {
-        console.log(`[Analysis Start] Item ID: ${itemId}, URL: ${targetUrl}`);
+      // ログをテキストファイルとしてダウンロードする機能
+      const downloadLog = () => {
+        if (items.length === 0) return;
         
-        if (!apiKey) {
-          console.warn("[Analysis Aborted] Gemini API Key is not set. Please set it in settings.");
-          setItems(prev => prev.map(item => 
-            item.id === itemId ? { ...item, status: "APIキー未設定", price: "エラー" } : item
-          ));
-          return;
-        }
+        const timestamp = new Date().toLocaleString('ja-JP').replace(/[\/\s:]/g, '-');
+        const fileName = `pb_monitor_log_${timestamp}.txt`;
+        
+        let textContent = "--- PB Monitor 解析ログ ---\n";
+        textContent += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+        
+        items.forEach((item, index) => {
+          textContent += `[${index + 1}] ${item.name || '不明な商品'}\n`;
+          textContent += `URL: ${item.url}\n`;
+          textContent += `価格: ${item.price || '---'}\n`;
+          textContent += `状態: ${item.status || '---'}\n`;
+          textContent += `発送時期: ${item.delivery_date || '---'}\n`;
+          textContent += `在庫/制限: ${item.stock_count || '---'}\n`;
+          textContent += `最終更新: ${item.lastUpdated}\n`;
+          textContent += `------------------------------------------\n`;
+        });
 
-        try {
-          // 本来はここでGemini APIを叩く (fetch)
-          // 今回はログ出力の実装にフォーカスするため、解析中の進捗をコンソールに出力します
-          console.log(`[Analysis Progress] Fetching content from ${targetUrl}...`);
-          
-          // 擬似的な遅延
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          console.log(`[Analysis Progress] Analyzing page structure with Gemini API...`);
-          
-          await new Promise(resolve => setTimeout(resolve, 1500));
-
-          // 成功時のダミーデータ更新
-          setItems(prev => prev.map(item => 
-            item.id === itemId ? { 
-              ...item, 
-              name: "解析済み商品サンプル", 
-              price: "¥2,980", 
-              status: "監視中",
-              lastUpdated: new Date().toLocaleString('ja-JP')
-            } : item
-          ));
-          
-          console.log(`[Analysis Success] Item ID: ${itemId} has been updated.`);
-        } catch (error) {
-          console.error(`[Analysis Error] Failed to analyze ${targetUrl}:`, error);
-          setItems(prev => prev.map(item => 
-            item.id === itemId ? { ...item, status: "解析失敗", price: "エラー" } : item
-          ));
-        }
+        const blob = new Blob([textContent], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(link.href);
       };
 
-      const addItem = () => {
-        if (!url.trim()) return;
+      const analyze = async (targetUrl, existingId = null) => {
+        if (!config.endpoint || !config.apiKey) {
+          setShowConfig(true);
+          return setError("APIキーを入力してください");
+        }
+        if (!targetUrl) return;
+
+        setLoading(true);
+        setError("");
+
+        let baseUrl = config.endpoint.trim().replace(/\/+$/, "");
+        let apiEndpoint = `${baseUrl}/openai/deployments/${config.deploymentName}/chat/completions?api-version=${config.apiVersion}`;
+
+        const systemPrompt = `あなたはECサイトの商品情報を抽出する専門家です。
+        提供されたURLから、最新の商品名、価格、在庫状況、発送時期を抽出してください。
         
-        const newItem = {
-          id: Date.now(),
-          url: url.trim(),
-          name: "解析リクエスト送信済み...",
-          price: "解析中...",
-          status: "待機中",
-          lastUpdated: new Date().toLocaleString('ja-JP')
+        【重要指示】
+        - プレミアムバンダイ等の既知のサイトの場合、URL内の情報から商品名やカテゴリを推測してください。
+        - リアルタイム検索が利用できない場合でも、「わからない」と答えるのではなく、URL文字列やあなたの知識から最も可能性の高い情報をJSONで返してください。
+        - 出力は必ず純粋なJSONオブジェクト1つだけにしてください。
+        
+        【JSONフォーマット】
+        {
+          "name": "商品名",
+          "price": "税込価格 (例: 5,500円)",
+          "stock_count": "在庫数または制限 (例: お一人様3個まで)",
+          "is_preorder": true/false,
+          "status": "在庫状況（予約受付中 / 在庫あり / なし 等）",
+          "delivery_date": "発送時期"
+        }`;
+
+        const userPrompt = `URL: ${targetUrl}\nこの商品の情報を解析してください。`;
+
+        const callApiWithBackoff = async (attempt = 0) => {
+          try {
+            const response = await fetch(apiEndpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "api-key": config.apiKey
+              },
+              body: JSON.stringify({
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: userPrompt }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.2
+              })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+              if (response.status === 429 && attempt < 3) {
+                await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 2000));
+                return callApiWithBackoff(attempt + 1);
+              }
+              throw new Error(data.error?.message || `HTTP ${response.status}`);
+            }
+            return data;
+          } catch (e) { throw e; }
         };
 
-        setItems(prev => [newItem, ...prev]);
-        setUrl("");
+        try {
+          const data = await callApiWithBackoff();
+          console.log("Azure OpenAI Raw Response:", data);
 
-        // 解析プロセスの開始
-        analyzeProduct(newItem.id, newItem.url);
-      };
+          let content = data.choices?.[0]?.message?.content;
+          if (!content) throw new Error("AIからの応答が空です。");
 
-      const deleteItem = (id) => {
-        console.log(`[System] Deleting item: ${id}`);
-        setItems(prev => prev.filter(item => item.id !== id));
+          content = content.replace(/```json/g, "").replace(/```/g, "").trim();
+          const result = JSON.parse(content);
+          
+          const updateTime = new Date().toLocaleString('ja-JP');
+
+          if (existingId) {
+            setItems(prev => prev.map(item => 
+              item.id === existingId ? { ...item, ...result, lastUpdated: updateTime } : item
+            ));
+          } else {
+            setItems(prev => [{ id: Date.now(), url: targetUrl, ...result, lastUpdated: updateTime }, ...prev]);
+            setUrl("");
+          }
+        } catch (e) {
+          console.error("Analysis Error:", e);
+          setError(`解析エラー: ${e.message}`);
+        } finally {
+          setLoading(false);
+        }
       };
 
       return (
-        <div className="max-w-2xl mx-auto p-4 md:p-8">
-          <header className="flex justify-between items-center mb-8 border-b pb-4">
-            <div className="flex items-center gap-2">
-              <Icon name="package-search" size={28} className="text-blue-600" />
-              <h1 className="text-2xl font-bold text-slate-800 tracking-tight">PB Monitor</h1>
+        <div className="max-w-3xl mx-auto p-4 md:p-10">
+          <header className="flex justify-between items-center mb-10">
+            <div className="flex items-center gap-3">
+              <div className="bg-sky-600 p-2.5 rounded-xl text-white shadow-lg shadow-sky-200">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.594 15.06a2 2 0 011.022-.547V7.086a2 2 0 011.022-.547l2.387-.477a6 6 0 013.86-.517l.318.158a6 6 0 003.86.517l2.387.477a2 2 0 001.022.547v7.832z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-slate-800 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-slate-500">PB Monitor</h1>
+                <p className="text-[10px] font-bold text-sky-500 uppercase tracking-widest">Azure GPT-4o v2</p>
+              </div>
             </div>
-            <button 
-              onClick={() => setIsConfigOpen(!isConfigOpen)}
-              className="p-2 hover:bg-slate-200 rounded-full transition-colors"
-            >
-              <Icon name="settings" className="text-slate-600" />
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={downloadLog} 
+                title="ログを保存"
+                className="p-2.5 hover:bg-emerald-50 text-emerald-600 rounded-full transition-colors border border-transparent hover:border-emerald-200"
+              >
+                <Icon.Download />
+              </button>
+              <button onClick={() => setShowConfig(!showConfig)} className="p-2.5 hover:bg-slate-200 rounded-full transition-colors border border-transparent hover:border-slate-300">
+                <Icon.Gear />
+              </button>
+            </div>
           </header>
 
-          {/* 設定パネル */}
-          {isConfigOpen && (
-            <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm mb-8 animate-in fade-in slide-in-from-top-2">
-              <h2 className="text-sm font-semibold text-slate-700 mb-3">API 設定 (Gemini API)</h2>
-              <div className="flex flex-col gap-3">
-                <input
-                  className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  type="password"
-                  placeholder="ここにAPIキーを入力"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                />
-                <div className="flex justify-end gap-2">
-                  <button 
-                    onClick={() => setIsConfigOpen(false)}
-                    className="text-sm px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-                  >
-                    キャンセル
-                  </button>
-                  <button 
-                    onClick={saveConfig}
-                    className="text-sm bg-slate-900 text-white px-5 py-2 rounded-lg font-medium hover:bg-black transition-colors"
-                  >
-                    保存する
-                  </button>
+          {showConfig && (
+            <div className="bg-white p-6 rounded-3xl mb-8 border-2 border-slate-100 shadow-xl space-y-4">
+              <h2 className="font-black text-slate-700 flex items-center gap-2">Settings</h2>
+              <div className="grid gap-3 text-sm font-bold text-slate-600">
+                <input className="w-full p-3 border-2 border-slate-100 rounded-xl outline-none" placeholder="Endpoint URL" value={config.endpoint} onChange={e => setConfig({...config, endpoint: e.target.value})} />
+                <input type="password" className="w-full p-3 border-2 border-slate-100 rounded-xl outline-none" placeholder="API Key" value={config.apiKey} onChange={e => setConfig({...config, apiKey: e.target.value})} />
+                <div className="grid grid-cols-2 gap-3">
+                  <input className="w-full p-3 border-2 border-slate-100 rounded-xl outline-none" placeholder="Deployment" value={config.deploymentName} onChange={e => setConfig({...config, deploymentName: e.target.value})} />
+                  <input className="w-full p-3 border-2 border-slate-100 rounded-xl outline-none" placeholder="Version" value={config.apiVersion} onChange={e => setConfig({...config, apiVersion: e.target.value})} />
                 </div>
               </div>
+              <button onClick={saveConfig} className="w-full bg-sky-600 text-white py-3 rounded-2xl font-black hover:bg-sky-700">保存して閉じる</button>
             </div>
           )}
 
-          {/* 入力エリア */}
-          <div className="flex gap-2 mb-8 group">
-            <div className="relative flex-1">
-              <input
-                className="w-full border border-slate-300 p-3 pl-4 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                placeholder="バンダイプレミアムの商品URLを貼り付け"
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && addItem()}
-              />
-            </div>
-            <button 
-              onClick={addItem}
-              disabled={!url}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all flex items-center gap-2 whitespace-nowrap"
+          <div className="bg-white p-2 rounded-3xl border-2 border-slate-100 shadow-xl mb-10 flex gap-2">
+            <input
+              className="flex-1 p-4 bg-transparent outline-none text-slate-700 font-medium"
+              placeholder="商品URLを入力"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && analyze(url)}
+            />
+            <button
+              onClick={() => analyze(url)}
+              disabled={loading || !url}
+              className="bg-sky-600 hover:bg-sky-700 disabled:bg-slate-200 text-white px-8 py-4 rounded-2xl font-black transition-all flex items-center gap-2"
             >
-              <Icon name="plus" size={20} />
+              {loading ? <div className="animate-spin rounded-full h-5 w-5 border-3 border-white border-t-transparent" /> : <Icon.Plus />}
               追加
             </button>
           </div>
 
-          {/* リスト表示 */}
-          <div className="space-y-3">
-            {items.length === 0 ? (
-              <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-3xl">
-                <Icon name="clipboard-list" size={48} className="mx-auto text-slate-300 mb-4" />
-                <p className="text-slate-400 font-medium">監視中の商品はまだありません</p>
-              </div>
-            ) : (
-              items.map(item => (
-                <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:border-blue-200 transition-all flex items-center gap-4 group">
-                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shrink-0">
-                    <Icon name="shopping-bag" />
-                  </div>
+          {error && (
+            <div className="bg-rose-50 border-2 border-rose-100 text-rose-600 p-5 rounded-2xl mb-8 text-sm font-bold">
+              <p>⚠️ {error}</p>
+            </div>
+          )}
+
+          <div className="grid gap-5">
+            {items.map(item => (
+              <div key={item.id} className="bg-white p-6 rounded-[32px] border-2 border-slate-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+                <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-slate-800 truncate leading-tight mb-1">{item.name}</div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Icon name="clock" size={12} /> {item.lastUpdated}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded-full ${
-                        item.status === '待機中' ? 'bg-slate-100 text-slate-600' : 
-                        item.status === '監視中' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                    <div className="flex items-center gap-2 mb-2">
+                      {item.is_preorder && (
+                        <span className="bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter">予約商品</span>
+                      )}
+                      <span className="text-[10px] font-bold text-slate-400">更新: {item.lastUpdated}</span>
+                    </div>
+                    <h3 className="font-black text-slate-800 text-lg mb-3 leading-snug">{item.name || "解析中..."}</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-slate-50 p-3 rounded-2xl">
+                        <div className="text-[10px] text-slate-400 font-bold mb-1">現在の価格</div>
+                        <div className="text-xl font-black text-sky-600 tracking-tighter">{item.price || "---"}</div>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-2xl">
+                        <div className="text-[10px] text-slate-400 font-bold mb-1">在庫・制限</div>
+                        <div className="text-sm font-black text-slate-700 uppercase tracking-tight">{item.stock_count || '確認中'}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className={`text-[11px] px-4 py-1.5 rounded-full font-black uppercase tracking-wider ${
+                        item.status?.includes('なし') || item.status?.includes('終了') || item.status?.includes('完売') 
+                        ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'
                       }`}>
-                        {item.status}
+                        {item.status || "状態確認中"}
                       </span>
+                      {item.delivery_date && (
+                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+                          🚚 {item.delivery_date}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right mr-2">
-                    <div className="text-lg font-black text-slate-900">{item.price}</div>
+
+                  <div className="flex flex-col gap-2">
+                    <button onClick={() => analyze(item.url, item.id)} disabled={loading} className="p-3 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-2xl transition-all">
+                      <Icon.Refresh />
+                    </button>
+                    <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))} className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all opacity-0 group-hover:opacity-100">
+                      <Icon.Trash />
+                    </button>
+                    <a href={item.url} target="_blank" className="p-3 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-2xl transition-all">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </a>
                   </div>
-                  <button 
-                    onClick={() => deleteItem(item.id)}
-                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Icon name="trash-2" size={20} />
-                  </button>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
-          
-          <footer className="mt-12 text-center text-slate-400 text-xs">
-            &copy; 2024 PB Monitor - Simple Stock Tracker
-          </footer>
         </div>
       );
     }
 
-    // React 18 Render setup
     const container = document.getElementById('root');
     const root = ReactDOM.createRoot(container);
     root.render(<App />);
