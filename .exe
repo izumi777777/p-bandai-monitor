@@ -1,6 +1,0 @@
-AZURE_TENANT_ID=6d1f4a83-5d14-4e3b-969c-2f8732054407
-AZURE_CLIENT_ID=4d03443b-628e-451a-8eae-e8b87233c465
-AZURE_CLIENT_SECRET=あなたの実際のクライアントシークレット
-AZURE_PROJECT_ENDPOINT=https://aifundry-bingsearch.services.ai.azure.com/api/projects/proj-default
-AGENT_ID=asst_ZVSbUgcSDY86MKYGE6Vm1Qa0
-GEMINI_API_KEY=AIzaSyAthneaW2jV5vG-RHoOBo9YZ5H9fLkGeOY
