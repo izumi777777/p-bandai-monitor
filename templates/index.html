@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PB Stock Monitor | AI Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">
+                PB Stock Monitor
+            </h1>
+            <p class="text-slate-400">AI Agent for Premium Bandai Real-time Tracking</p>
+        </header>
+
+        <!-- Main Input -->
+        <div class="glass rounded-2xl p-6 mb-6 shadow-xl">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-grow relative">
+                    <i class="fa-solid fa-link absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                    <input id="url" type="text" placeholder="商品URLを入力してください..." 
+                        class="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-200" />
+                </div>
+                <button onclick="monitor()" id="monitor-btn"
+                    class="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 px-8 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
+                    <i class="fa-solid fa-magnifying-glass"></i> 調査開始
+                </button>
+            </div>
+        </div>
+
+        <!-- Result Card -->
+        <div id="result-container" class="hidden glass rounded-3xl overflow-hidden mb-6 shadow-2xl animate-fade-in">
+            <div class="bg-slate-800/50 px-6 py-4 border-b border-slate-700 flex justify-between items-center">
+                <span class="text-sm font-semibold text-blue-400 uppercase tracking-wider">Analysis Result</span>
+                <span id="res-timestamp" class="text-xs text-slate-500"></span>
+            </div>
+            <div class="p-0 flex flex-col md:flex-row">
+                <!-- Image Section -->
+                <div id="res-image-container" class="w-full md:w-1/3 bg-slate-900 flex items-center justify-center overflow-hidden min-h-[250px] border-b md:border-b-0 md:border-r border-slate-700">
+                    <img id="res-image" src="" alt="Product Image" class="object-contain w-full h-full max-h-[300px] hover:scale-105 transition-transform duration-500" onerror="this.src='https://via.placeholder.com/400x400?text=No+Image'"/>
+                </div>
+                
+                <!-- Info Section -->
+                <div class="p-6 flex-grow">
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-1">商品名</label>
+                            <div id="res-name" class="text-xl font-bold text-white leading-tight"></div>
+                        </div>
+                        <div class="flex gap-8">
+                            <div>
+                                <label class="text-xs text-slate-500 block mb-1">作品名</label>
+                                <div id="res-series" class="text-white font-semibold"></div>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500 block mb-1">価格</label>
+                                <div id="res-price" class="text-blue-400 font-bold text-lg"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-4 items-center border-t border-slate-700/50 pt-4 mb-4">
+                            <div id="res-status-badge" class="px-4 py-1.5 rounded-full text-sm font-bold"></div>
+                            <div class="text-slate-400 text-sm">
+                                <i class="fa-solid fa-truck-fast mr-1"></i> 発送予定: <span id="res-shipping" class="text-slate-200"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Link Button -->
+                        <div class="pt-2">
+                            <a id="res-link" href="#" target="_blank" class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> 商品ページを見る
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Follow-up Query -->
+        <div id="query-container" class="hidden glass rounded-2xl p-6 shadow-xl">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-emerald-400">
+                <i class="fa-solid fa-comment-dots"></i> AIエージェントに追記質問
+            </h3>
+            <div class="flex gap-3">
+                <input id="query" type="text" placeholder="例: 2次予約の情報はありますか？" 
+                    class="flex-grow bg-slate-900/50 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-200" />
+                <button onclick="sendQuery()" id="query-btn"
+                    class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-semibold transition-all">
+                    質問
+                </button>
+            </div>
+            <div id="reply-area" class="mt-4 p-4 rounded-xl bg-slate-900/30 text-slate-300 hidden text-sm leading-relaxed border-l-4 border-emerald-500">
+            </div>
+        </div>
+
+        <!-- Initial Placeholder -->
+        <div id="placeholder" class="text-center py-20">
+            <div class="inline-block p-6 rounded-full bg-slate-800/50 text-slate-600 mb-4">
+                <i class="fa-solid fa-robot text-5xl"></i>
+            </div>
+            <p class="text-slate-500">URLを入力して調査を開始してください</p>
+        </div>
+    </div>
+
+    <script>
+        let currentThreadId = null;
+
+        function setStatus(loading, btnId) {
+            const btn = document.getElementById(btnId);
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin"></i> 処理中...`;
+                btn.classList.add('opacity-70');
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = btnId === 'monitor-btn' ? `<i class="fa-solid fa-magnifying-glass"></i> 調査開始` : `質問`;
+                btn.classList.remove('opacity-70');
+            }
+        }
+
+        async function monitor() {
+            const urlInput = document.getElementById("url").value;
+            if (!urlInput) return;
+
+            setStatus(true, 'monitor-btn');
+            document.getElementById('placeholder').classList.add('hidden');
+            document.getElementById('result-container').classList.add('hidden');
+            
+            try {
+                const res = await fetch("/api/monitor", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url: urlInput })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw data;
+
+                currentThreadId = data.thread_id;
+                const result = data.result;
+
+                // UI Update
+                document.getElementById('res-name').textContent = result.商品名;
+                document.getElementById('res-series').textContent = result.作品名;
+                document.getElementById('res-price').textContent = result["価格（税込）"];
+                document.getElementById('res-shipping').textContent = result.発送予定月;
+                document.getElementById('res-timestamp').textContent = result.調査日時;
+                
+                // Link Handling
+                const linkElement = document.getElementById('res-link');
+                linkElement.href = result.商品URL || urlInput;
+                
+                // Image Handling
+                const imgElement = document.getElementById('res-image');
+                if (result.商品画像URL) {
+                    imgElement.src = result.商品画像URL;
+                } else {
+                    imgElement.src = 'https://via.placeholder.com/400x400?text=No+Image';
+                }
+
+                const badge = document.getElementById('res-status-badge');
+                badge.textContent = result.現在のステータス;
+                if (result.現在のステータス === "予約受付中") {
+                    badge.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/50";
+                } else {
+                    badge.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-rose-500/20 text-rose-400 border border-rose-500/50";
+                }
+
+                document.getElementById('result-container').classList.remove('hidden');
+                document.getElementById('query-container').classList.remove('hidden');
+                
+            } catch (err) {
+                console.error(err);
+                alert("エラー: " + (err.message || "通信に失敗しました"));
+            } finally {
+                setStatus(false, 'monitor-btn');
+            }
+        }
+
+        async function sendQuery() {
+            const queryInput = document.getElementById("query").value;
+            if (!queryInput || !currentThreadId) return;
+
+            setStatus(true, 'query-btn');
+            const replyArea = document.getElementById('reply-area');
+            replyArea.classList.remove('hidden');
+            replyArea.textContent = "💬 AIが回答を生成しています...";
+
+            try {
+                const res = await fetch("/api/query", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        thread_id: currentThreadId,
+                        query: queryInput 
+                    })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw data;
+
+                replyArea.innerHTML = `<i class="fa-solid fa-robot mr-2 text-emerald-500"></i>` + data.reply;
+            } catch (err) {
+                replyArea.textContent = "❌ 回答の取得に失敗しました。";
+            } finally {
+                setStatus(false, 'query-btn');
+            }
+        }
+    </script>
+</body>
+</html>

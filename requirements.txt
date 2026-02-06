@@ -1,0 +1,49 @@
+--- Web Framework / App Core ---
+
+UI作成およびWebサーバー機能
+
+streamlit
+flask
+requests
+
+--- Azure & Authentication (Entra ID) ---
+
+Azure Entra ID 認証用 (MSAL)
+
+msal
+
+Azure SDK 基本（認証、ID管理）
+
+azure-identity
+
+Azure AI Project (Azure AI Foundry / Agents) 連携
+
+azure-ai-projects
+
+--- Google AI (Gemini) ---
+
+Gemini API を直接呼ぶ場合は requests で十分ですが、
+
+公式SDKを使用する場合は以下を含めます
+
+google-generativeai
+
+--- Database & Storage ---
+
+Firebase / Firestore 連携
+
+firebase-admin
+
+Databricks / Delta Lake 連携用 (SQL経由)
+
+databricks-sql-connector
+
+--- Utilities ---
+
+環境変数 (.env) の読み込み
+
+python-dotenv
+
+日付操作
+
+python-dateutil
