@@ -29,7 +29,6 @@
 </head>
 <body class="min-h-screen p-4 md:p-8">
     <div class="max-w-4xl mx-auto">
-        <!-- Header -->
         <header class="mb-10 text-center">
             <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">
                 PB Stock Monitor
@@ -37,7 +36,6 @@
             <p class="text-slate-400">AI Agent for Premium Bandai Real-time Tracking</p>
         </header>
 
-        <!-- Main Input -->
         <div class="glass rounded-2xl p-6 mb-6 shadow-xl">
             <div class="flex flex-col md:flex-row gap-4">
                 <div class="flex-grow relative">
@@ -52,26 +50,23 @@
             </div>
         </div>
 
-        <!-- Result Card -->
         <div id="result-container" class="hidden glass rounded-3xl overflow-hidden mb-6 shadow-2xl animate-fade-in">
             <div class="bg-slate-800/50 px-6 py-4 border-b border-slate-700 flex justify-between items-center">
                 <span class="text-sm font-semibold text-blue-400 uppercase tracking-wider">Analysis Result</span>
                 <span id="res-timestamp" class="text-xs text-slate-500"></span>
             </div>
             <div class="p-0 flex flex-col md:flex-row">
-                <!-- Image Section -->
-                <div id="res-image-container" class="w-full md:w-1/3 bg-slate-900 flex items-center justify-center overflow-hidden min-h-[250px] border-b md:border-b-0 md:border-r border-slate-700">
+                <div id="res-image-container" class="w-full md:w-1/3 bg-slate-900 flex items-center justify-center overflow-hidden min-h-[300px] border-b md:border-b-0 md:border-r border-slate-700 p-4">
                     <img id="res-image" src="" alt="Product Image" class="object-contain w-full h-full max-h-[300px] hover:scale-105 transition-transform duration-500" onerror="this.src='https://via.placeholder.com/400x400?text=No+Image'"/>
                 </div>
                 
-                <!-- Info Section -->
                 <div class="p-6 flex-grow">
                     <div class="grid grid-cols-1 gap-4">
                         <div>
                             <label class="text-xs text-slate-500 block mb-1">商品名</label>
                             <div id="res-name" class="text-xl font-bold text-white leading-tight"></div>
                         </div>
-                        <div class="flex gap-8">
+                        <div class="flex flex-wrap gap-8">
                             <div>
                                 <label class="text-xs text-slate-500 block mb-1">作品名</label>
                                 <div id="res-series" class="text-white font-semibold"></div>
@@ -79,6 +74,10 @@
                             <div>
                                 <label class="text-xs text-slate-500 block mb-1">価格</label>
                                 <div id="res-price" class="text-blue-400 font-bold text-lg"></div>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500 block mb-1">最大購入数</label>
+                                <div id="res-max-qty" class="text-emerald-400 font-bold text-lg"></div>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-4 items-center border-t border-slate-700/50 pt-4 mb-4">
@@ -88,7 +87,6 @@
                             </div>
                         </div>
                         
-                        <!-- Link Button -->
                         <div class="pt-2">
                             <a id="res-link" href="#" target="_blank" class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg">
                                 <i class="fa-solid fa-arrow-up-right-from-square"></i> 商品ページを見る
@@ -99,16 +97,15 @@
             </div>
         </div>
 
-        <!-- Follow-up Query -->
         <div id="query-container" class="hidden glass rounded-2xl p-6 shadow-xl">
             <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-emerald-400">
-                <i class="fa-solid fa-comment-dots"></i> AIエージェントに追記質問
+                <i class="fa-solid fa-comment-dots"></i> AIエージェントに詳細を聞く
             </h3>
             <div class="flex gap-3">
-                <input id="query" type="text" placeholder="例: 2次予約の情報はありますか？" 
+                <input id="query" type="text" placeholder="例: この商品の注目ポイントは？" 
                     class="flex-grow bg-slate-900/50 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-200" />
                 <button onclick="sendQuery()" id="query-btn"
-                    class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-semibold transition-all">
+                    class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-semibold transition-all min-w-[100px]">
                     質問
                 </button>
             </div>
@@ -116,7 +113,6 @@
             </div>
         </div>
 
-        <!-- Initial Placeholder -->
         <div id="placeholder" class="text-center py-20">
             <div class="inline-block p-6 rounded-full bg-slate-800/50 text-slate-600 mb-4">
                 <i class="fa-solid fa-robot text-5xl"></i>
@@ -148,6 +144,7 @@
             setStatus(true, 'monitor-btn');
             document.getElementById('placeholder').classList.add('hidden');
             document.getElementById('result-container').classList.add('hidden');
+            document.getElementById('query-container').classList.add('hidden');
             
             try {
                 const res = await fetch("/api/monitor", {
@@ -160,30 +157,33 @@
                 if (!res.ok) throw data;
 
                 currentThreadId = data.thread_id;
-                const result = data.result;
+                const result = data.result; // バックエンドのJSONを受け取る
 
-                // UI Update
-                document.getElementById('res-name').textContent = result.商品名;
-                document.getElementById('res-series').textContent = result.作品名;
-                document.getElementById('res-price').textContent = result["価格（税込）"];
-                document.getElementById('res-shipping').textContent = result.発送予定月;
+                // UIの各項目に反映
+                document.getElementById('res-name').textContent = result.商品名 || "不明";
+                document.getElementById('res-series').textContent = result.作品名 || "設定なし";
+                document.getElementById('res-price').textContent = result["価格（税込）"] || "不明";
+                document.getElementById('res-shipping').textContent = result.発送予定月 || "不明";
                 document.getElementById('res-timestamp').textContent = result.調査日時;
+                document.getElementById('res-max-qty').textContent = result.最大在庫数 || "0";
                 
-                // Link Handling
-                const linkElement = document.getElementById('res-link');
-                linkElement.href = result.商品URL || urlInput;
-                
-                // Image Handling
+                // 画像URLの反映 (バックエンドのキー名 "商品画像" に合わせる)
                 const imgElement = document.getElementById('res-image');
-                if (result.商品画像URL) {
-                    imgElement.src = result.商品画像URL;
+                if (result.商品画像) {
+                    imgElement.src = result.商品画像;
                 } else {
                     imgElement.src = 'https://via.placeholder.com/400x400?text=No+Image';
                 }
 
+                // 商品リンク
+                document.getElementById('res-link').href = result.商品URL || urlInput;
+
+                // ステータスバッジの色分け
                 const badge = document.getElementById('res-status-badge');
-                badge.textContent = result.現在のステータス;
-                if (result.現在のステータス === "予約受付中") {
+                const statusText = result.現在のステータス || "不明";
+                badge.textContent = statusText;
+                
+                if (statusText.includes("在庫あり") || statusText.includes("予約受付中")) {
                     badge.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/50";
                 } else {
                     badge.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-rose-500/20 text-rose-400 border border-rose-500/50";
@@ -194,7 +194,8 @@
                 
             } catch (err) {
                 console.error(err);
-                alert("エラー: " + (err.message || "通信に失敗しました"));
+                alert("エラー: " + (err.error || "情報の取得に失敗しました"));
+                document.getElementById('placeholder').classList.remove('hidden');
             } finally {
                 setStatus(false, 'monitor-btn');
             }
@@ -207,7 +208,7 @@
             setStatus(true, 'query-btn');
             const replyArea = document.getElementById('reply-area');
             replyArea.classList.remove('hidden');
-            replyArea.textContent = "💬 AIが回答を生成しています...";
+            replyArea.textContent = "💬 AIが思考中...";
 
             try {
                 const res = await fetch("/api/query", {
