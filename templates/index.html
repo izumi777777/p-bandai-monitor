@@ -2,234 +2,348 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PB Stock Monitor | AI Agent</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PB Stock Monitor Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f1f5f9;
-        }
-        .glass {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .animate-fade-in {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background:#0a0f1d; color:#e2e8f0; overflow-x: hidden; }
+        .glass { background:rgba(17,24,39,.8); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.05); }
+        .btn-primary { background:#2563eb; transition: all 0.2s; }
+        .btn-primary:hover { background:#3b82f6; transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-ghost { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); }
+        .btn-ghost:hover { background:rgba(255,255,255,0.1); }
+        .loader { border-top-color: #3b82f6; animation: spinner 0.6s linear infinite; }
+        @keyframes spinner { to { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
-        <header class="mb-10 text-center">
-            <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">
-                PB Stock Monitor
-            </h1>
-            <p class="text-slate-400">AI Agent for Premium Bandai Real-time Tracking</p>
-        </header>
+<body class="min-h-screen p-4 md:p-6 pb-20">
 
-        <div class="glass rounded-2xl p-6 mb-6 shadow-xl">
-            <div class="flex flex-col md:flex-row gap-4">
-                <div class="flex-grow relative">
-                    <i class="fa-solid fa-link absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                    <input id="url" type="text" placeholder="商品URLを入力してください..." 
-                        class="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-200" />
-                </div>
-                <button onclick="monitor()" id="monitor-btn"
-                    class="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 px-8 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
-                    <i class="fa-solid fa-magnifying-glass"></i> 調査開始
-                </button>
-            </div>
-        </div>
-
-        <div id="result-container" class="hidden glass rounded-3xl overflow-hidden mb-6 shadow-2xl animate-fade-in">
-            <div class="bg-slate-800/50 px-6 py-4 border-b border-slate-700 flex justify-between items-center">
-                <span class="text-sm font-semibold text-blue-400 uppercase tracking-wider">Analysis Result</span>
-                <span id="res-timestamp" class="text-xs text-slate-500"></span>
-            </div>
-            <div class="p-0 flex flex-col md:flex-row">
-                <div id="res-image-container" class="w-full md:w-1/3 bg-slate-900 flex items-center justify-center overflow-hidden min-h-[300px] border-b md:border-b-0 md:border-r border-slate-700 p-4">
-                    <img id="res-image" src="" alt="Product Image" class="object-contain w-full h-full max-h-[300px] hover:scale-105 transition-transform duration-500" onerror="this.src='https://via.placeholder.com/400x400?text=No+Image'"/>
-                </div>
-                
-                <div class="p-6 flex-grow">
-                    <div class="grid grid-cols-1 gap-4">
-                        <div>
-                            <label class="text-xs text-slate-500 block mb-1">商品名</label>
-                            <div id="res-name" class="text-xl font-bold text-white leading-tight"></div>
-                        </div>
-                        <div class="flex flex-wrap gap-8">
-                            <div>
-                                <label class="text-xs text-slate-500 block mb-1">作品名</label>
-                                <div id="res-series" class="text-white font-semibold"></div>
-                            </div>
-                            <div>
-                                <label class="text-xs text-slate-500 block mb-1">価格</label>
-                                <div id="res-price" class="text-blue-400 font-bold text-lg"></div>
-                            </div>
-                            <div>
-                                <label class="text-xs text-slate-500 block mb-1">最大購入数</label>
-                                <div id="res-max-qty" class="text-emerald-400 font-bold text-lg"></div>
-                            </div>
-                        </div>
-                        <div class="flex flex-wrap gap-4 items-center border-t border-slate-700/50 pt-4 mb-4">
-                            <div id="res-status-badge" class="px-4 py-1.5 rounded-full text-sm font-bold"></div>
-                            <div class="text-slate-400 text-sm">
-                                <i class="fa-solid fa-truck-fast mr-1"></i> 発送予定: <span id="res-shipping" class="text-slate-200"></span>
-                            </div>
-                        </div>
-                        
-                        <div class="pt-2">
-                            <a id="res-link" href="#" target="_blank" class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg">
-                                <i class="fa-solid fa-arrow-up-right-from-square"></i> 商品ページを見る
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="query-container" class="hidden glass rounded-2xl p-6 shadow-xl">
-            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-emerald-400">
-                <i class="fa-solid fa-comment-dots"></i> AIエージェントに詳細を聞く
-            </h3>
-            <div class="flex gap-3">
-                <input id="query" type="text" placeholder="例: この商品の注目ポイントは？" 
-                    class="flex-grow bg-slate-900/50 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-200" />
-                <button onclick="sendQuery()" id="query-btn"
-                    class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-semibold transition-all min-w-[100px]">
-                    質問
-                </button>
-            </div>
-            <div id="reply-area" class="mt-4 p-4 rounded-xl bg-slate-900/30 text-slate-300 hidden text-sm leading-relaxed border-l-4 border-emerald-500">
-            </div>
-        </div>
-
-        <div id="placeholder" class="text-center py-20">
-            <div class="inline-block p-6 rounded-full bg-slate-800/50 text-slate-600 mb-4">
-                <i class="fa-solid fa-robot text-5xl"></i>
-            </div>
-            <p class="text-slate-500">URLを入力して調査を開始してください</p>
+    <div id="login-overlay" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+        <div class="glass rounded-2xl p-8 w-full max-w-sm text-center shadow-2xl">
+            <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">PB Stock Monitor Pro</h1>
+            <button id="login-btn" class="w-full bg-white text-slate-900 font-bold py-4 rounded-xl flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg hover:bg-slate-100">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google">
+                Googleでログイン
+            </button>
+            <p id="auth-status" class="mt-4 text-[10px] text-slate-500 min-h-[15px]"></p>
         </div>
     </div>
 
-    <script>
-        let currentThreadId = null;
+    <header class="max-w-4xl mx-auto flex justify-between items-center mb-8">
+        <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-pulse"></div>
+            <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro</h1>
+        </div>
+        <button id="logout-btn" class="text-slate-500 hover:text-red-400 text-xs transition-colors hidden px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/50">
+            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+        </button>
+    </header>
 
-        function setStatus(loading, btnId) {
-            const btn = document.getElementById(btnId);
-            if (loading) {
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin"></i> 処理中...`;
-                btn.classList.add('opacity-70');
-            } else {
-                btn.disabled = false;
-                btn.innerHTML = btnId === 'monitor-btn' ? `<i class="fa-solid fa-magnifying-glass"></i> 調査開始` : `質問`;
-                btn.classList.remove('opacity-70');
-            }
-        }
+    <main class="max-w-4xl mx-auto space-y-8">
 
-        async function monitor() {
-            const urlInput = document.getElementById("url").value;
-            if (!urlInput) return;
+        <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
+            <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">New Monitor</h2>
+            <div class="flex flex-col md:flex-row gap-3">
+                <div class="flex-1 relative">
+                    <input id="url-input" type="text" placeholder="https://p-bandai.jp/item/item-..." 
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600">
+                    <div id="input-loader" class="absolute right-4 top-1/2 -translate-y-1/2 hidden">
+                        <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5"></div>
+                    </div>
+                </div>
+                <button id="inspect-btn" class="btn-primary text-white px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                    <i class="fas fa-search"></i> 調査する
+                </button>
+            </div>
+        </section>
 
-            setStatus(true, 'monitor-btn');
-            document.getElementById('placeholder').classList.add('hidden');
-            document.getElementById('result-container').classList.add('hidden');
-            document.getElementById('query-container').classList.add('hidden');
+        <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+            <div class="glass rounded-3xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl border border-white/10">
+                <div id="preview-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
+                <div class="p-4 bg-slate-900/50 border-t border-white/5 flex gap-3">
+                    <button id="preview-cancel" class="flex-1 py-3 rounded-xl text-sm font-bold text-slate-400 btn-ghost">キャンセル</button>
+                    <button id="confirm-add-btn" class="flex-[2] py-3 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">この商品を監視する</button>
+                </div>
+            </div>
+        </div>
+
+        <section class="space-y-4">
+            <div class="flex items-center justify-between px-2">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Watchlist</h2>
+                    <span id="item-count" class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-mono">0</span>
+                </div>
+            </div>
             
+            <div id="watchlist" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+
+        <details id="line-setup" class="glass rounded-xl overflow-hidden border border-white/5">
+            <summary class="p-4 text-xs font-bold text-slate-400 cursor-pointer hover:bg-white/5 flex items-center justify-between">
+                <span><i class="fab fa-line mr-2 text-emerald-500"></i>LINE通知設定 (クリックで開く)</span>
+                <i class="fas fa-chevron-down text-[10px]"></i>
+            </summary>
+            <div class="p-5 border-t border-white/5 bg-slate-900/30">
+                <p class="text-[11px] text-slate-500 mb-4">
+                    在庫変動時に通知を受け取るには、LINE USER IDを登録してください。<br>
+                    <span class="text-blue-400">※LINE Developers等のプロファイルから取得したID（Uから始まる文字列）を入力します。</span>
+                </p>
+                <div class="flex flex-col gap-3">
+                    <div class="flex gap-2">
+                        <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." 
+                               class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-emerald-500/50">
+                        <button id="save-line-btn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all">保存</button>
+                    </div>
+                    <button id="test-line-btn" class="text-[10px] text-slate-400 hover:text-white transition-colors flex items-center gap-1 justify-center py-2 border border-dashed border-slate-700 rounded-lg">
+                        <i class="fas fa-paper-plane"></i> 保存したIDにテスト通知を送る
+                    </button>
+                </div>
+            </div>
+        </details>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, onSnapshot, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "{{ config.apiKey }}",
+            authDomain: "{{ config.authDomain }}",
+            projectId: "{{ config.projectId }}",
+            storageBucket: "{{ config.storageBucket }}",
+            messagingSenderId: "{{ config.messagingSenderId }}",
+            appId: "{{ config.appId }}"
+        };
+
+        const APP_ID = "pb-stock-monitor-pro";
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const loginOverlay = document.getElementById("login-overlay");
+        const loginBtn = document.getElementById("login-btn");
+        const logoutBtn = document.getElementById("logout-btn");
+        const urlInput = document.getElementById("url-input");
+        const inspectBtn = document.getElementById("inspect-btn");
+        const inputLoader = document.getElementById("input-loader");
+        const previewContainer = document.getElementById("preview-container");
+        const previewContent = document.getElementById("preview-content");
+        const previewCancel = document.getElementById("preview-cancel");
+        const confirmAddBtn = document.getElementById("confirm-add-btn");
+        const watchlistContainer = document.getElementById("watchlist");
+        const itemCount = document.getElementById("item-count");
+        const saveLineBtn = document.getElementById("save-line-btn");
+        const testLineBtn = document.getElementById("test-line-btn");
+
+        let currentUser = null;
+        let currentInspectedData = null;
+
+        loginBtn.onclick = async () => {
+            const provider = new GoogleAuthProvider();
+            try { await signInWithPopup(auth, provider); } catch(e) { console.error("Login Error:", e); }
+        };
+
+        logoutBtn.onclick = () => signOut(auth);
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("✅ Auth State: Logged In", user.uid);
+                loginOverlay.classList.add("hidden");
+                logoutBtn.classList.remove("hidden");
+                initWatchlist(user.uid);
+                loadSettings(user.uid);
+            } else {
+                currentUser = null;
+                console.log("❌ Auth State: Logged Out");
+                loginOverlay.classList.remove("hidden");
+                logoutBtn.classList.add("hidden");
+            }
+        });
+
+        inspectBtn.onclick = async () => {
+            const url = urlInput.value.trim();
+            if (!url.includes("p-bandai.jp/item/")) return alert("プレバン商品URLを入力してください");
+
+            inspectBtn.disabled = true;
+            inputLoader.classList.remove("hidden");
+
             try {
-                const res = await fetch("/api/monitor", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ url: urlInput })
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/monitor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                    body: JSON.stringify({ url })
                 });
-                
                 const data = await res.json();
-                if (!res.ok) throw data;
+                if (!res.ok) throw new Error(data.error);
 
-                currentThreadId = data.thread_id;
-                const result = data.result; // バックエンドのJSONを受け取る
-
-                // UIの各項目に反映
-                document.getElementById('res-name').textContent = result.商品名 || "不明";
-                document.getElementById('res-series').textContent = result.作品名 || "設定なし";
-                document.getElementById('res-price').textContent = result["価格（税込）"] || "不明";
-                document.getElementById('res-shipping').textContent = result.発送予定月 || "不明";
-                document.getElementById('res-timestamp').textContent = result.調査日時;
-                document.getElementById('res-max-qty').textContent = result.最大在庫数 || "0";
-                
-                // 画像URLの反映 (バックエンドのキー名 "商品画像" に合わせる)
-                const imgElement = document.getElementById('res-image');
-                if (result.商品画像) {
-                    imgElement.src = result.商品画像;
-                } else {
-                    imgElement.src = 'https://via.placeholder.com/400x400?text=No+Image';
-                }
-
-                // 商品リンク
-                document.getElementById('res-link').href = result.商品URL || urlInput;
-
-                // ステータスバッジの色分け
-                const badge = document.getElementById('res-status-badge');
-                const statusText = result.現在のステータス || "不明";
-                badge.textContent = statusText;
-                
-                if (statusText.includes("在庫あり") || statusText.includes("予約受付中")) {
-                    badge.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/50";
-                } else {
-                    badge.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-rose-500/20 text-rose-400 border border-rose-500/50";
-                }
-
-                document.getElementById('result-container').classList.remove('hidden');
-                document.getElementById('query-container').classList.remove('hidden');
-                
+                currentInspectedData = { ...data.preview, url };
+                showPreview(currentInspectedData);
             } catch (err) {
-                console.error(err);
-                alert("エラー: " + (err.error || "情報の取得に失敗しました"));
-                document.getElementById('placeholder').classList.remove('hidden');
+                alert(err.message);
             } finally {
-                setStatus(false, 'monitor-btn');
+                inspectBtn.disabled = false;
+                inputLoader.classList.add("hidden");
+            }
+        };
+
+        function showPreview(data) {
+            const img = data.imageUrl || data.image_url || "";
+            const name = data.title || data.product_name || "不明な商品";
+            previewContent.innerHTML = `
+                <div class="space-y-4 text-center">
+                    <img src="${img}" class="w-48 h-48 mx-auto object-contain bg-black/40 rounded-xl border border-white/10">
+                    <div>
+                        <h3 class="font-bold text-white text-sm">${name}</h3>
+                        <p class="text-blue-400 font-mono text-lg">${data.price}</p>
+                        <span class="inline-block px-3 py-1 rounded-full text-[10px] font-bold ${data.inStock ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">
+                            ${data.statusText}
+                        </span>
+                    </div>
+                    ${data.agent_comment ? `
+                        <div class="text-left text-[11px] bg-blue-500/10 p-3 rounded-lg border border-blue-500/20 text-blue-300">
+                            <i class="fas fa-robot mr-1"></i> AI解析: ${data.agent_comment}
+                        </div>
+                    ` : ''}
+                </div>`;
+            previewContainer.classList.remove("hidden");
+        }
+
+        previewCancel.onclick = () => previewContainer.classList.add("hidden");
+
+        confirmAddBtn.onclick = async () => {
+            if (!currentInspectedData) return;
+            confirmAddBtn.disabled = true;
+            confirmAddBtn.innerText = "登録中...";
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                console.log("📤 Sending to Watchlist API:", currentInspectedData);
+
+                const res = await fetch('/api/watchlist', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': `Bearer ${idToken}` 
+                    },
+                    body: JSON.stringify(currentInspectedData)
+                });
+
+                if (!res.ok) {
+                    const result = await res.json();
+                    throw new Error(result.error || "保存失敗");
+                }
+
+                previewContainer.classList.add("hidden");
+                urlInput.value = "";
+                currentInspectedData = null;
+                alert("監視リストに追加しました！");
+            } catch (err) { 
+                console.error("Watchlist Error:", err);
+                alert("エラー: " + err.message); 
+            } finally { 
+                confirmAddBtn.disabled = false; 
+                confirmAddBtn.innerText = "この商品を監視する";
+            }
+        };
+
+        // --- Watchlist Realtime Sync ---
+        function initWatchlist(uid) {
+            console.log("🚀 監視開始: users/" + uid + "/watchlist");
+            
+            // コレクション参照を定義
+            const colRef = collection(db, 'users', uid, 'watchlist');
+            
+            // リアルタイムリスナー
+            onSnapshot(colRef, (snap) => {
+                console.log("📊 スナップショット受信! ドキュメント数:", snap.size);
+                itemCount.innerText = snap.size;
+                
+                if (snap.empty) {
+                    console.warn("⚠️ データが空です。パスが正しいか、ルールで拒否されていないか確認してください。");
+                    watchlistContainer.innerHTML = `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
+                    return;
+                }
+
+                watchlistContainer.innerHTML = snap.docs.map(doc => {
+                    const d = doc.data();
+                    // image_b52599.png のフィールド名(imageUrl, statusText等)に準拠
+                    const img = d.imageUrl || d.image_url || "";
+                    const name = d.title || d.product_name || "不明な商品";
+                    const status = d.statusText || d.status || "";
+
+                    return `
+                        <div class="glass p-3 rounded-xl flex gap-3 relative group">
+                            <img src="${img}" class="w-12 h-12 object-cover rounded-lg bg-black">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[10px] font-bold text-white truncate">${name}</p>
+                                <p class="text-[9px] text-blue-400">${d.price || ''} / ${status}</p>
+                            </div>
+                            <button onclick="deleteItem('${doc.id}')" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all">
+                                <i class="fas fa-trash-alt text-xs"></i>
+                            </button>
+                        </div>`;
+                }).join("");
+            }, (error) => {
+                // ここでエラーが出る場合、権限（ルール）不足です
+                console.error("❌ Firestoreリスナーエラー:", error.code, error.message);
+                if (error.code === 'permission-denied') {
+                    alert("Firestoreの読み取り権限がありません。セキュリティルールを確認してください。");
+                }
+            });
+        }
+
+        // 削除機能も 'history' に合わせる
+        window.deleteItem = async (id) => {
+            if (confirm("削除しますか？")) {
+                try {
+                    await deleteDoc(doc(db, 'users', currentUser.uid, 'watchlist', id));
+                    console.log("🗑️ Deleted from watchlist:", id);
+                } catch (e) {
+                    console.error("Delete Error:", e);
+                }
+            }
+        };
+
+        async function loadSettings(uid) {
+            const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'line'));
+            if (snap.exists()) {
+                document.getElementById("line-id-input").value = snap.data().lineUserId || "";
             }
         }
 
-        async function sendQuery() {
-            const queryInput = document.getElementById("query").value;
-            if (!queryInput || !currentThreadId) return;
+        saveLineBtn.onclick = async () => {
+            const val = document.getElementById("line-id-input").value.trim();
+            if (!val.startsWith("U")) return alert("LINE User ID (U...) を入力してください");
+            const ref = doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'settings', 'line');
+            await setDoc(ref, { lineUserId: val, updatedAt: serverTimestamp() });
+            alert("LINE IDを保存しました");
+        };
 
-            setStatus(true, 'query-btn');
-            const replyArea = document.getElementById('reply-area');
-            replyArea.classList.remove('hidden');
-            replyArea.textContent = "💬 AIが思考中...";
-
+        testLineBtn.onclick = async () => {
+            testLineBtn.disabled = true;
             try {
-                const res = await fetch("/api/query", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
-                        thread_id: currentThreadId,
-                        query: queryInput 
-                    })
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/test-notification', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${idToken}` }
                 });
-                
-                const data = await res.json();
-                if (!res.ok) throw data;
-
-                replyArea.innerHTML = `<i class="fa-solid fa-robot mr-2 text-emerald-500"></i>` + data.reply;
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error);
+                }
+                alert("テスト通知を送信しました。LINEを確認してください。");
             } catch (err) {
-                replyArea.textContent = "❌ 回答の取得に失敗しました。";
+                alert("エラー: " + err.message);
             } finally {
-                setStatus(false, 'query-btn');
+                testLineBtn.disabled = false;
             }
-        }
+        };
     </script>
 </body>
 </html>
