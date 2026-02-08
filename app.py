@@ -2,7 +2,6 @@ import os
 import json
 import logging
 import re
-import time
 from datetime import datetime
 from functools import wraps
 from flask import Flask, request, jsonify, render_template
@@ -11,6 +10,7 @@ from flask import Flask, request, jsonify, render_template
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 from azure.ai.agents.models import ListSortOrder
+
 from dotenv import load_dotenv
 from curl_cffi import requests
 
@@ -23,14 +23,15 @@ from linebot.exceptions import LineBotApiError
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 
-# .envの読み込み
+# ==========================
+# 初期設定
+# ==========================
 load_dotenv()
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- 設定の読み込み ---
 AZURE_PROJECT_ENDPOINT = os.getenv("AZURE_PROJECT_ENDPOINT")
 AGENT_ID = os.getenv("AGENT_ID")
 LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
@@ -38,249 +39,205 @@ MY_LINE_ID = os.getenv("MY_LINE_USER_ID")
 FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", "service-account-key.json")
 APP_ID = os.getenv("APP_ID", "pb-stock-monitor-pro")
 
-# --- 初期化処理 ---
-
-# Firebase初期化
+# ==========================
+# Firebase 初期化
+# ==========================
+db = None
 if not firebase_admin._apps:
     try:
-        # サービスアカウントキーを使用して初期化
         cred = credentials.Certificate(FIREBASE_KEY_PATH)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
         logger.info("✅ Firebase Admin SDK 連携成功")
     except Exception as e:
         logger.error(f"❌ Firebase初期化エラー: {e}")
-        db = None
 
-# LINE API初期化
+# ==========================
+# LINE / Azure 初期化
+# ==========================
 line_bot_api = LineBotApi(LINE_TOKEN) if LINE_TOKEN else None
 
-# Azure Agent初期化
-# DefaultAzureCredentialは環境変数（AZURE_TENANT_ID等）から認証情報を取得します
-project_client = AIProjectClient(credential=DefaultAzureCredential(), endpoint=AZURE_PROJECT_ENDPOINT)
+project_client = AIProjectClient(
+    credential=DefaultAzureCredential(),
+    endpoint=AZURE_PROJECT_ENDPOINT
+)
 agent = project_client.agents.get_agent(AGENT_ID)
 
 # ==========================
-# 0. 認証用デコレータ (Firebase Auth)
+# Firebase Auth デコレータ
 # ==========================
-
 def login_required(f):
-    """
-    Firebase IDトークンを検証するデコレータ
-    フロントエンドのfetchリクエストで 'Authorization: Bearer <ID_TOKEN>' を要求します
-    """
     @wraps(f)
-    def decorated_function(*args, **kwargs):
-        id_token = None
+    def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization")
-        
-        if auth_header and auth_header.startswith("Bearer "):
-            id_token = auth_header.split("Bearer ")[1]
-        
-        if not id_token:
-            return jsonify({"error": "Unauthorized: No token provided"}), 401
-        
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Unauthorized"}), 401
+
+        token = auth_header.split("Bearer ")[1]
         try:
-            # トークンの検証。有効期限や署名をチェックします
-            decoded_token = auth.verify_id_token(id_token)
-            # ユーザー情報をリクエストオブジェクトに格納（エンドポイント内でuidを利用可能にする）
-            request.user = decoded_token
+            decoded = auth.verify_id_token(token)
+            request.user = decoded
         except Exception as e:
-            logger.error(f"❌ Token Verification Error: {e}")
-            return jsonify({"error": "Unauthorized: Invalid token"}), 401
-        
+            logger.error(f"❌ Token error: {e}")
+            return jsonify({"error": "Invalid token"}), 401
+
         return f(*args, **kwargs)
-    return decorated_function
+    return wrapper
 
 # ==========================
-# 1. 外部サービス連携ロジック
+# 外部連携
 # ==========================
-
 def send_line_notification(to_user_id, message):
-    """LINE Messaging API経由で通知送信"""
     if not line_bot_api or not to_user_id:
         return
     try:
         line_bot_api.push_message(to_user_id, TextSendMessage(text=message))
-        logger.info(f"✅ LINE通知送信完了")
     except LineBotApiError as e:
-        logger.error(f"❌ LINE送信エラー: {e.message}")
+        logger.error(f"❌ LINE error: {e.message}")
 
 def scrape_premium_bandai(url):
-    """プレミアムバンダイのページを解析して基本情報を抽出"""
     try:
-        # curl_cffiを使用してブラウザの挙動を模倣
-        response = requests.get(url, impersonate="chrome120", timeout=15)
-        if response.status_code != 200: return None
-        html = response.text
+        res = requests.get(url, impersonate="chrome120", timeout=15)
+        if res.status_code != 200:
+            return None
 
-        # 正規表現による簡易パース
-        title_match = re.search(r'<title>(.*?) \|', html)
-        product_name = title_match.group(1) if title_match else "不明な商品"
+        html = res.text
 
-        price_match = re.search(r"price: '(\d+)'", html)
-        price = price_match.group(1) if price_match else "不明"
+        title = re.search(r"<title>(.*?) \|", html)
+        price = re.search(r"price: '(\d+)'", html)
+        stock = re.search(r'orderstock_list = \{.*?"(.*?)":"(.*?)"', html, re.DOTALL)
 
-        img_match = re.search(r'"0000000000_img":"(.*?)"', html)
-        img_url = img_match.group(1) if img_match else None
-
-        # 在庫フラグの抽出
-        stock_match = re.search(r'orderstock_list = \{.*?"(.*?)":"(.*?)"', html, re.DOTALL)
-        available = (stock_match and stock_match.group(2) == "○")
-
-        max_match = re.search(r'ordermax_list = \{.*?"(.*?)":(\d+)', html, re.DOTALL)
-        max_qty = max_match.group(2) if max_match else "0"
+        available = stock and stock.group(2) == "○"
 
         return {
-            "product_name": product_name,
-            "price": f"{price}円",
-            "available": available,
-            "max_qty": max_qty,
-            "image_url": img_url,
-            "raw_status": "在庫あり" if available else "在庫なし"
+            "商品名": title.group(1) if title else "不明",
+            "価格（税込）": f"{price.group(1)}円" if price else "不明",
+            "available": bool(available),
+            "現在のステータス": "在庫あり" if available else "在庫なし",
+            "商品画像": None,
         }
     except Exception as e:
-        logger.error(f"❌ Scraping Error: {e}")
+        logger.error(f"❌ Scrape error: {e}")
         return None
 
 # ==========================
-# 2. Azure AI Agent 処理
+# Azure Agent 処理
 # ==========================
-
-def get_stock_status_via_agent(url: str):
-    """スクレイピングデータをAI Agentに渡し、構造化された回答を得る"""
-    scraped_data = scrape_premium_bandai(url)
-    if not scraped_data: return None, None
-
-    try:
-        # スレッドの作成
-        thread = project_client.agents.threads.create()
-        
-        prompt = f"""
-        以下の情報を読み取り、指定のJSON形式で返答してください。
-        - 商品名: {scraped_data['product_name']}
-        - 価格: {scraped_data['price']}
-        - 在庫: {scraped_data['raw_status']}
-        - 最大数: {scraped_data['max_qty']}
-        - 画像: {scraped_data['image_url']}
-
-        回答はJSONブロックのみとし、以下のキーを含めてください:
-        {{
-          "調査日時": "{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-          "available": {str(scraped_data['available']).lower()},
-          "商品名": "{scraped_data['product_name']}",
-          "価格（税込）": "{scraped_data['price']}",
-          "現在のステータス": "{scraped_data['raw_status']}",
-          "最大在庫数": "{scraped_data['max_qty']}",
-          "商品画像": "{scraped_data['image_url']}",
-          "商品URL": "{url}"
-        }}
-        """
-
-        project_client.agents.messages.create(thread_id=thread.id, role="user", content=prompt)
-        project_client.agents.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
-
-        # 最新のメッセージを取得
-        messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
-        raw_text = ""
-        for message in messages:
-            if message.role == "assistant" and message.text_messages:
-                raw_text = message.text_messages[0].text.value
-                break
-
-        # JSONの抽出
-        json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group()), thread.id
-        
-        return None, None
-    except Exception as e:
-        logger.error(f"❌ Azure Agent Error: {e}")
+def get_stock_status_via_agent(url):
+    scraped = scrape_premium_bandai(url)
+    if not scraped:
         return None, None
 
-# --- Flask Routes ---
+    thread = project_client.agents.threads.create()
 
+    prompt = json.dumps({
+        **scraped,
+        "商品URL": url,
+        "調査日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }, ensure_ascii=False)
+
+    project_client.agents.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=prompt
+    )
+
+    project_client.agents.runs.create_and_process(
+        thread_id=thread.id,
+        agent_id=agent.id
+    )
+
+    messages = project_client.agents.messages.list(
+        thread_id=thread.id,
+        order=ListSortOrder.DESCENDING
+    )
+
+    for m in messages:
+        if m.role == "assistant" and m.text_messages:
+            text = m.text_messages[0].text.value
+            try:
+                return json.loads(re.search(r"\{.*\}", text, re.DOTALL).group()), thread.id
+            except:
+                pass
+
+    return None, None
+
+# ==========================
+# Routes
+# ==========================
 @app.route("/")
 def index():
-    """メイン画面のレンダリング"""
     return render_template("index.html")
 
 @app.route("/api/monitor", methods=["POST"])
 @login_required
-def monitor_item():
-    """URLを解析し、情報をFirestoreに保存（要認証）"""
-    data = request.json
-    url = data.get("url")
-    uid = request.user['uid'] # ログインユーザーのID
-    line_id = data.get("line_id", MY_LINE_ID)
-    
+def api_monitor():
+    url = request.json.get("url")
     if not url:
-        return jsonify({"error": "URLが必要です"}), 400
+        return jsonify({"error": "URL required"}), 400
 
     result, thread_id = get_stock_status_via_agent(url)
     if not result:
-        return jsonify({"error": "解析に失敗しました"}), 500
-
-    # Firestoreへの保存 (規定のパス構造に従う)
-    # パス: /artifacts/{APP_ID}/users/{uid}/history/{doc_id}
-    if db:
-        try:
-            history_ref = db.collection('artifacts').document(APP_ID)\
-                           .collection('users').document(uid)\
-                           .collection('history')
-            
-            history_ref.add({
-                "product_name": result.get("商品名"),
-                "url": url,
-                "status": result.get("現在のステータス"),
-                "available": result.get("available"),
-                "image_url": result.get("商品画像"),
-                "createdAt": firestore.SERVER_TIMESTAMP
-            })
-        except Exception as e:
-            logger.error(f"❌ Firestore Save Error: {e}")
-
-    # 在庫検知時のLINE通知
-    if result.get("available") and line_id:
-        notification_msg = f"🔔【在庫検知】\n{result.get('商品名')}\nステータス: {result.get('現在のステータス')}\n{url}"
-        send_line_notification(line_id, notification_msg)
+        return jsonify({"error": "解析失敗"}), 500
 
     return jsonify({
-        "item_name": result.get("商品名"),
-        "status": result.get("現在のステータス"),
-        "available": result.get("available"),
-        "image_url": result.get("商品画像"),
-        "thread_id": thread_id,
-        "result": result
+        "preview": result,
+        "thread_id": thread_id
     })
+
+@app.route("/api/watchlist", methods=["POST"])
+@login_required
+def api_watchlist_add():
+    if not db:
+        return jsonify({"error": "DB error"}), 500
+
+    uid = request.user["uid"]
+    data = request.json
+
+    db.collection("artifacts").document(APP_ID)\
+      .collection("users").document(uid)\
+      .collection("watchlist")\
+      .add({
+          **data,
+          "createdAt": firestore.SERVER_TIMESTAMP
+      })
+
+    return jsonify({"status": "ok"})
 
 @app.route("/api/query", methods=["POST"])
 @login_required
-def query_agent():
-    """Agentに対する追加質問エンドポイント（要認証）"""
-    data = request.json or {}
+def api_query():
+    data = request.json
     thread_id = data.get("thread_id")
-    user_query = data.get("query")
+    query = data.get("query")
 
-    if not thread_id or not user_query:
-        return jsonify({"error": "Thread IDと質問内容が必要です"}), 400
+    if not thread_id or not query:
+        return jsonify({"error": "invalid params"}), 400
 
-    try:
-        project_client.agents.messages.create(thread_id=thread_id, role="user", content=user_query)
-        project_client.agents.runs.create_and_process(thread_id=thread_id, agent_id=agent.id)
-        
-        messages = project_client.agents.messages.list(thread_id=thread_id, order=ListSortOrder.DESCENDING)
-        reply_text = ""
-        for message in messages:
-            if message.role == "assistant" and message.text_messages:
-                reply_text = message.text_messages[0].text.value
-                break
+    project_client.agents.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=query
+    )
 
-        return jsonify({"reply": reply_text or "回答を生成できませんでした。"})
-    except Exception as e:
-        logger.error(f"❌ Query Error: {e}")
-        return jsonify({"error": str(e)}), 500
+    project_client.agents.runs.create_and_process(
+        thread_id=thread_id,
+        agent_id=agent.id
+    )
 
+    messages = project_client.agents.messages.list(
+        thread_id=thread_id,
+        order=ListSortOrder.DESCENDING
+    )
+
+    for m in messages:
+        if m.role == "assistant" and m.text_messages:
+            return jsonify({"reply": m.text_messages[0].text.value})
+
+    return jsonify({"reply": "回答なし"})
+
+# ==========================
+# 起動
+# ==========================
 if __name__ == "__main__":
-    # 本番環境では環境変数からポートを取得するか、WSGIサーバーを使用してください
     app.run(debug=True, port=5000)
