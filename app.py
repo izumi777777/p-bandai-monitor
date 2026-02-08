@@ -45,6 +45,7 @@ APP_ID = os.getenv("APP_ID", "pb-stock-monitor-pro")
 db = None
 if not firebase_admin._apps:
     try:
+        # 環境変数にパスがない場合はデフォルト名を使用
         cred = credentials.Certificate(FIREBASE_KEY_PATH)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
@@ -57,6 +58,7 @@ if not firebase_admin._apps:
 # ==========================
 line_bot_api = LineBotApi(LINE_TOKEN) if LINE_TOKEN else None
 
+# Azure AI Agent Client
 project_client = AIProjectClient(
     credential=DefaultAzureCredential(),
     endpoint=AZURE_PROJECT_ENDPOINT
@@ -75,6 +77,7 @@ def login_required(f):
 
         token = auth_header.split("Bearer ")[1]
         try:
+            # フロントエンドから送られてきたIDトークンを検証
             decoded = auth.verify_id_token(token)
             request.user = decoded
         except Exception as e:
@@ -85,17 +88,10 @@ def login_required(f):
     return wrapper
 
 # ==========================
-# 外部連携
+# 補助関数
 # ==========================
-def send_line_notification(to_user_id, message):
-    if not line_bot_api or not to_user_id:
-        return
-    try:
-        line_bot_api.push_message(to_user_id, TextSendMessage(text=message))
-    except LineBotApiError as e:
-        logger.error(f"❌ LINE error: {e.message}")
-
 def scrape_premium_bandai(url):
+    """プレミアムバンダイのサイトをスクレイピングして基本情報を取得"""
     try:
         res = requests.get(url, impersonate="chrome120", timeout=15)
         if res.status_code != 200:
@@ -103,38 +99,36 @@ def scrape_premium_bandai(url):
 
         html = res.text
 
-        title = re.search(r"<title>(.*?) \|", html)
-        price = re.search(r"price: '(\d+)'", html)
-        stock = re.search(r'orderstock_list = \{.*?"(.*?)":"(.*?)"', html, re.DOTALL)
+        # タイトル・価格・在庫・画像を抽出
+        title_match = re.search(r"<title>(.*?) \|", html)
+        price_match = re.search(r"price: '(\d+)'", html)
+        stock_match = re.search(r'orderstock_list = \{.*?"(.*?)":"(.*?)"', html, re.DOTALL)
+        image_match = re.search(r'<meta property="og:image" content="(.*?)"', html)
 
-        available = stock and stock.group(2) == "○"
+        available = stock_match and stock_match.group(2) == "○"
 
         return {
-            "商品名": title.group(1) if title else "不明",
-            "価格（税込）": f"{price.group(1)}円" if price else "不明",
-            "available": bool(available),
-            "現在のステータス": "在庫あり" if available else "在庫なし",
-            "商品画像": None,
+            "title": title_match.group(1) if title_match else "不明な商品",
+            "price": f"{price_match.group(1)}円" if price_match else "不明",
+            "inStock": bool(available),
+            "statusText": "在庫あり" if available else "在庫なし",
+            "imageUrl": image_match.group(1) if image_match else None,
+            "url": url
         }
     except Exception as e:
         logger.error(f"❌ Scrape error: {e}")
         return None
 
-# ==========================
-# Azure Agent 処理
-# ==========================
 def get_stock_status_via_agent(url):
+    """Azure AI Agent を使用して解析"""
     scraped = scrape_premium_bandai(url)
     if not scraped:
         return None, None
 
     thread = project_client.agents.threads.create()
 
-    prompt = json.dumps({
-        **scraped,
-        "商品URL": url,
-        "調査日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }, ensure_ascii=False)
+    # エージェントへのプロンプト作成
+    prompt = f"以下の商品情報を解析して、最終的な在庫状況をJSON形式で要約してください: {json.dumps(scraped, ensure_ascii=False)}"
 
     project_client.agents.messages.create(
         thread_id=thread.id,
@@ -156,11 +150,14 @@ def get_stock_status_via_agent(url):
         if m.role == "assistant" and m.text_messages:
             text = m.text_messages[0].text.value
             try:
-                return json.loads(re.search(r"\{.*\}", text, re.DOTALL).group()), thread.id
+                # エージェントの回答からJSON部分を抽出
+                json_str = re.search(r"\{.*\}", text, re.DOTALL).group()
+                return json.loads(json_str), thread.id
             except:
-                pass
+                # JSON抽出に失敗した場合は生テキストを返す
+                return {"summary": text, **scraped}, thread.id
 
-    return None, None
+    return scraped, thread.id
 
 # ==========================
 # Routes
@@ -194,15 +191,19 @@ def api_watchlist_add():
     uid = request.user["uid"]
     data = request.json
 
-    db.collection("artifacts").document(APP_ID)\
-      .collection("users").document(uid)\
-      .collection("watchlist")\
-      .add({
-          **data,
-          "createdAt": firestore.SERVER_TIMESTAMP
-      })
-
-    return jsonify({"status": "ok"})
+    # 指定された構造 /artifacts/{appId}/users/{userId}/watchlist に保存
+    try:
+        doc_ref = db.collection("artifacts").document(APP_ID)\
+          .collection("users").document(uid)\
+          .collection("watchlist").add({
+              **data,
+              "createdAt": firestore.SERVER_TIMESTAMP,
+              "lastChecked": firestore.SERVER_TIMESTAMP
+          })
+        return jsonify({"status": "ok", "id": doc_ref[1].id})
+    except Exception as e:
+        logger.error(f"❌ Firestore error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/query", methods=["POST"])
 @login_required
