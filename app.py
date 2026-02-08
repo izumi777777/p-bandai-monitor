@@ -6,6 +6,11 @@ from datetime import datetime
 from functools import wraps
 from flask import Flask, request, jsonify, render_template
 
+# -------- 定期監視機能のために追加 --------------------------------
+from apscheduler.schedulers.background import BackgroundScheduler
+
+scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
+
 # Azure SDK
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
@@ -35,7 +40,6 @@ logger = logging.getLogger(__name__)
 AZURE_PROJECT_ENDPOINT = os.getenv("AZURE_PROJECT_ENDPOINT")
 AGENT_ID = os.getenv("AGENT_ID")
 LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-MY_LINE_ID = os.getenv("MY_LINE_USER_ID")
 FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", "service-account-key.json")
 APP_ID = os.getenv("APP_ID", "pb-stock-monitor-pro")
 
@@ -43,202 +47,299 @@ APP_ID = os.getenv("APP_ID", "pb-stock-monitor-pro")
 # Firebase 初期化
 # ==========================
 db = None
-if not firebase_admin._apps:
-    try:
-        # 環境変数にパスがない場合はデフォルト名を使用
+try:
+    if not firebase_admin._apps:
         cred = credentials.Certificate(FIREBASE_KEY_PATH)
         firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        logger.info("✅ Firebase Admin SDK 連携成功")
-    except Exception as e:
-        logger.error(f"❌ Firebase初期化エラー: {e}")
+    db = firestore.client()
+    logger.info("✅ Firebase Admin SDK 連携成功")
+except Exception as e:
+    logger.error(f"❌ Firebase初期化エラー: {e}")
 
 # ==========================
-# LINE / Azure 初期化
+# Azure 初期化
 # ==========================
-line_bot_api = LineBotApi(LINE_TOKEN) if LINE_TOKEN else None
-
-# Azure AI Agent Client
+# DefaultAzureCredentialはローカル環境では Azure CLI 等でのログインが必要です
 project_client = AIProjectClient(
-    credential=DefaultAzureCredential(),
-    endpoint=AZURE_PROJECT_ENDPOINT
+    credential=DefaultAzureCredential(), endpoint=AZURE_PROJECT_ENDPOINT
 )
 agent = project_client.agents.get_agent(AGENT_ID)
 
+
 # ==========================
-# Firebase Auth デコレータ
+# 認証デコレータ (修正版)
 # ==========================
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
+        # 開発用: 環境変数で認証をスキップできるように設定可能
+        if os.getenv("SKIP_AUTH") == "true":
+            request.user = {"uid": "debug_user"}
+            return f(*args, **kwargs)
+
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            return jsonify({"error": "Unauthorized"}), 401
+            logger.warning("⚠️ 認証ヘッダーが不足しています")
+            return jsonify({"error": "Unauthorized: No token provided"}), 401
 
         token = auth_header.split("Bearer ")[1]
         try:
-            # フロントエンドから送られてきたIDトークンを検証
             decoded = auth.verify_id_token(token)
             request.user = decoded
         except Exception as e:
-            logger.error(f"❌ Token error: {e}")
-            return jsonify({"error": "Invalid token"}), 401
+            logger.error(f"❌ トンクン検証エラー: {e}")
+            return jsonify({"error": f"Invalid token: {str(e)}"}), 401
 
         return f(*args, **kwargs)
+
     return wrapper
 
+
 # ==========================
-# 補助関数
+# ロジック関数
 # ==========================
 def scrape_premium_bandai(url):
-    """プレミアムバンダイのサイトをスクレイピングして基本情報を取得"""
     try:
+        # プレミアムバンダイのBot対策を回避するために impersonate を使用
         res = requests.get(url, impersonate="chrome120", timeout=15)
         if res.status_code != 200:
+            logger.error(f"❌ サイトアクセス失敗: {res.status_code}")
             return None
 
         html = res.text
+        title = re.search(r"<title>(.*?) \|", html)
+        price = re.search(r"price: '(\d+)'", html)
+        stock = re.search(r'orderstock_list = \{.*?"(.*?)":"(.*?)"', html, re.DOTALL)
+        image = re.search(r'<meta property="og:image" content="(.*?)"', html)
 
-        # タイトル・価格・在庫・画像を抽出
-        title_match = re.search(r"<title>(.*?) \|", html)
-        price_match = re.search(r"price: '(\d+)'", html)
-        stock_match = re.search(r'orderstock_list = \{.*?"(.*?)":"(.*?)"', html, re.DOTALL)
-        image_match = re.search(r'<meta property="og:image" content="(.*?)"', html)
-
-        available = stock_match and stock_match.group(2) == "○"
+        available = stock and stock.group(2) == "○"
 
         return {
-            "title": title_match.group(1) if title_match else "不明な商品",
-            "price": f"{price_match.group(1)}円" if price_match else "不明",
+            "title": title.group(1) if title else "不明な商品",
+            "price": f"{price.group(1)}円" if price else "---",
             "inStock": bool(available),
             "statusText": "在庫あり" if available else "在庫なし",
-            "imageUrl": image_match.group(1) if image_match else None,
-            "url": url
+            "imageUrl": image.group(1) if image else None,
+            "url": url,
         }
     except Exception as e:
-        logger.error(f"❌ Scrape error: {e}")
+        logger.error(f"❌ スクレイピングエラー: {e}")
         return None
 
+
 def get_stock_status_via_agent(url):
-    """Azure AI Agent を使用して解析"""
     scraped = scrape_premium_bandai(url)
     if not scraped:
         return None, None
 
+    # Azure AI Agent のスレッド作成
     thread = project_client.agents.threads.create()
 
-    # エージェントへのプロンプト作成
-    prompt = f"以下の商品情報を解析して、最終的な在庫状況をJSON形式で要約してください: {json.dumps(scraped, ensure_ascii=False)}"
+    # 解析依頼
+    prompt = f"以下の商品情報を解析してJSONで返してください。特に在庫が復活しているか判断してください: {json.dumps(scraped, ensure_ascii=False)}"
 
     project_client.agents.messages.create(
-        thread_id=thread.id,
-        role="user",
-        content=prompt
+        thread_id=thread.id, role="user", content=prompt
     )
 
     project_client.agents.runs.create_and_process(
-        thread_id=thread.id,
-        agent_id=agent.id
+        thread_id=thread.id, agent_id=agent.id
     )
 
     messages = project_client.agents.messages.list(
-        thread_id=thread.id,
-        order=ListSortOrder.DESCENDING
+        thread_id=thread.id, order=ListSortOrder.DESCENDING
     )
 
     for m in messages:
         if m.role == "assistant" and m.text_messages:
             text = m.text_messages[0].text.value
             try:
-                # エージェントの回答からJSON部分を抽出
-                json_str = re.search(r"\{.*\}", text, re.DOTALL).group()
-                return json.loads(json_str), thread.id
+                # エージェントが返したテキストからJSON部分を抽出
+                match = re.search(r"\{.*\}", text, re.DOTALL)
+                if match:
+                    return json.loads(match.group()), thread.id
             except:
-                # JSON抽出に失敗した場合は生テキストを返す
-                return {"summary": text, **scraped}, thread.id
+                pass
+            return {**scraped, "agent_comment": text}, thread.id
 
     return scraped, thread.id
 
+
 # ==========================
-# Routes
+# API Routes
 # ==========================
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 @app.route("/api/monitor", methods=["POST"])
 @login_required
 def api_monitor():
     url = request.json.get("url")
     if not url:
-        return jsonify({"error": "URL required"}), 400
+        return jsonify({"error": "URLが指定されていません"}), 400
 
+    logger.info(f"🔍 調査開始: {url}")
     result, thread_id = get_stock_status_via_agent(url)
-    if not result:
-        return jsonify({"error": "解析失敗"}), 500
 
-    return jsonify({
-        "preview": result,
-        "thread_id": thread_id
-    })
+    if not result:
+        return jsonify(
+            {"error": "商品情報の取得に失敗しました。URLを確認してください。"}
+        ), 500
+
+    return jsonify({"preview": result, "thread_id": thread_id})
+
 
 @app.route("/api/watchlist", methods=["POST"])
 @login_required
 def api_watchlist_add():
     if not db:
-        return jsonify({"error": "DB error"}), 500
+        return jsonify({"error": "データベースに接続できません"}), 500
 
     uid = request.user["uid"]
     data = request.json
 
-    # 指定された構造 /artifacts/{appId}/users/{userId}/watchlist に保存
     try:
-        doc_ref = db.collection("artifacts").document(APP_ID)\
-          .collection("users").document(uid)\
-          .collection("watchlist").add({
-              **data,
-              "createdAt": firestore.SERVER_TIMESTAMP,
-              "lastChecked": firestore.SERVER_TIMESTAMP
-          })
-        return jsonify({"status": "ok", "id": doc_ref[1].id})
+        # パス規則: /artifacts/{appId}/users/{userId}/watchlist
+        db.collection("artifacts").document(APP_ID).collection("users").document(
+            uid
+        ).collection("watchlist").add(
+            {
+                **data,
+                "createdAt": firestore.SERVER_TIMESTAMP,
+                "lastChecked": firestore.SERVER_TIMESTAMP,
+            }
+        )
+        return jsonify({"status": "ok"})
     except Exception as e:
-        logger.error(f"❌ Firestore error: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/query", methods=["POST"])
+# =======================================================================================
+# LINE通知機能
+# =======================================================================================
+def send_line_notification(line_user_id: str, message: str):
+    if not LINE_TOKEN or not line_user_id:
+        logger.warning("⚠️ LINE通知スキップ（設定不足）")
+        return
+
+    try:
+        line_bot_api = LineBotApi(LINE_TOKEN)
+        line_bot_api.push_message(
+            line_user_id,
+            TextSendMessage(text=message),
+        )
+        logger.info("✅ LINE通知送信完了")
+    except LineBotApiError as e:
+        logger.error(f"❌ LINE送信エラー: {e}")
+        
+# =======================================================================================
+# LINE通知テスト機能(非本番向け)
+# =======================================================================================
+@app.route("/api/test-notification", methods=["POST"])
 @login_required
-def api_query():
-    data = request.json
-    thread_id = data.get("thread_id")
-    query = data.get("query")
+def api_test_notification():
+    if not db:
+        return jsonify({"error": "DB not initialized"}), 500
 
-    if not thread_id or not query:
-        return jsonify({"error": "invalid params"}), 400
+    uid = request.user["uid"]
 
-    project_client.agents.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=query
+    # LINE設定取得
+    line_doc = (
+        db.collection("artifacts")
+        .document(APP_ID)
+        .collection("users")
+        .document(uid)
+        .collection("settings")
+        .document("line")
+        .get()
     )
 
-    project_client.agents.runs.create_and_process(
-        thread_id=thread_id,
-        agent_id=agent.id
-    )
+    if not line_doc.exists:
+        return jsonify({"error": "LINE USER ID が未設定です"}), 400
 
-    messages = project_client.agents.messages.list(
-        thread_id=thread_id,
-        order=ListSortOrder.DESCENDING
-    )
+    line_user_id = line_doc.to_dict().get("lineUserId")
+    if not line_user_id:
+        return jsonify({"error": "LINE USER ID が不正です"}), 400
 
-    for m in messages:
-        if m.role == "assistant" and m.text_messages:
-            return jsonify({"reply": m.text_messages[0].text.value})
+    # テスト通知送信
+    message = """🧪 テスト通知
+PB Stock Monitor Pro です。
 
-    return jsonify({"reply": "回答なし"})
+このメッセージが届いていれば、
+LINE通知設定は正常に動作しています 👍
+"""
+
+    send_line_notification(line_user_id, message)
+
+    return jsonify({"status": "ok"})
+
+
+# ========================================================================================
+# 監視ジョブ本体
+# ========================================================================================
+def check_watchlist_job():
+    logger.info("⏰ 在庫監視ジョブ開始")
+
+    users_ref = db.collection("artifacts").document(APP_ID).collection("users")
+    for user_doc in users_ref.stream():
+        uid = user_doc.id
+
+        # LINE設定取得
+        line_ref = users_ref.document(uid).collection("settings").document("line").get()
+        if not line_ref.exists:
+            continue
+
+        line_user_id = line_ref.to_dict().get("lineUserId")
+        if not line_user_id:
+            continue
+
+        watchlist_ref = users_ref.document(uid).collection("watchlist")
+        for item_doc in watchlist_ref.stream():
+            item = item_doc.to_dict()
+            url = item.get("url")
+
+            scraped = scrape_premium_bandai(url)
+            if not scraped:
+                continue
+
+            prev_status = item.get("inStock", False)
+            current_status = scraped["inStock"]
+
+            # 状態変化チェック
+            if prev_status != current_status:
+                logger.info(f"🔔 在庫変化検知: {item.get('title')}")
+
+                # Firestore 更新
+                item_doc.reference.update(
+                    {
+                        "inStock": current_status,
+                        "statusText": scraped["statusText"],
+                        "lastChecked": firestore.SERVER_TIMESTAMP,
+                        "lastNotifiedStatus": current_status,
+                    }
+                )
+
+                # LINE 通知
+                msg = f"""📦 在庫変動通知
+{item.get("title")}
+状態: {scraped["statusText"]}
+{url}"""
+                send_line_notification(line_user_id, msg)
+
 
 # ==========================
 # 起動
 # ==========================
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    scheduler.add_job(
+        check_watchlist_job,
+        trigger="interval",
+        minutes=10,
+        id="watchlist_checker",
+        replace_existing=True,
+    )
+    scheduler.start()
+    # 開発環境でVSCodeなどから実行する場合
+    app.run(debug=True, port=5000, use_reloader=False)
+
