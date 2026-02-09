@@ -1,8 +1,25 @@
-flask
-curl_cffi
-beautifulsoup4
-python-dotenv
+# Web Framework
+Flask
+
+# LINE Messaging API
+line-bot-sdk
+
+# Firebase Admin SDK
+firebase_admin
+
+# Scheduling
+APScheduler
+
+# Azure & Identity
 azure-ai-projects
 azure-identity
-apscheduler
-line-bot-sdk
+azure-ai-agents
+
+# HTTP Client (TLS指紋回避用)
+curl_cffi
+
+# Environment Variables
+python-dotenv
+
+# Gunicorn (本番環境での実行用 - 推奨)
+gunicorn
