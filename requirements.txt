@@ -4,3 +4,4 @@ beautifulsoup4
 python-dotenv
 azure-ai-projects
 azure-identity
+apscheduler

@@ -4,7 +4,12 @@ import logging
 import re
 from datetime import datetime
 from functools import wraps
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, abort
+# LINE MessagesAPI
+from linebot import LineBotApi, WebhookHandler
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.exceptions import LineBotApiError, InvalidSignatureError
+
 
 # -------- 定期監視機能のために追加 --------------------------------
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -17,22 +22,23 @@ from azure.identity import DefaultAzureCredential
 from azure.ai.agents.models import ListSortOrder
 
 from dotenv import load_dotenv
-from curl_cffi import requests
+load_dotenv()
 
-# LINE Messaging API SDK
-from linebot import LineBotApi
-from linebot.models import TextSendMessage
-from linebot.exceptions import LineBotApiError
+from curl_cffi import requests
 
 # Firebase Admin SDK
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET")
+
+line_bot_api = LineBotApi(os.environ["LINE_CHANNEL_ACCESS_TOKEN"])
+handler = WebhookHandler(os.environ["LINE_CHANNEL_SECRET"])
+
 # ==========================
 # 初期設定
 # ==========================
-load_dotenv()
-
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,12 +55,15 @@ APP_ID = os.getenv("APP_ID", "pb-stock-monitor-pro")
 db = None
 try:
     if not firebase_admin._apps:
-        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        # ファイルパスを環境変数から取得（デフォルトは "service-account-key.json"）
+        cred_path = os.getenv("FIREBASE_KEY_PATH", "service-account-key.json")
+        cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred)
+        logger.info(f"✅ Firebase Admin SDK 連携成功 (File: {cred_path})")
     db = firestore.client()
-    logger.info("✅ Firebase Admin SDK 連携成功")
 except Exception as e:
     logger.error(f"❌ Firebase初期化エラー: {e}")
+
 
 # ==========================
 # Azure 初期化
@@ -170,7 +179,16 @@ def get_stock_status_via_agent(url):
 # ==========================
 @app.route("/")
 def index():
-    return render_template("index.html")
+    # Secrets Managerから取得した、または環境変数にある値を渡す
+    firebase_config = {
+        "apiKey": os.getenv("FIREBASE_API_KEY"),
+        "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
+        "projectId": os.getenv("FIREBASE_PROJECT_ID"),
+        "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
+        "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
+        "appId": os.getenv("FIREBASE_APP_ID"),
+    }
+    return render_template("index.html", config=firebase_config)
 
 
 @app.route("/api/monitor", methods=["POST"])
@@ -184,9 +202,7 @@ def api_monitor():
     result, thread_id = get_stock_status_via_agent(url)
 
     if not result:
-        return jsonify(
-            {"error": "商品情報の取得に失敗しました。URLを確認してください。"}
-        ), 500
+        return jsonify({"error": "商品情報の取得に失敗しました。URLを確認してください。"}), 500
 
     return jsonify({"preview": result, "thread_id": thread_id})
 
@@ -215,6 +231,7 @@ def api_watchlist_add():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 # =======================================================================================
 # LINE通知機能
 # =======================================================================================
@@ -232,7 +249,8 @@ def send_line_notification(line_user_id: str, message: str):
         logger.info("✅ LINE通知送信完了")
     except LineBotApiError as e:
         logger.error(f"❌ LINE送信エラー: {e}")
-        
+
+
 # =======================================================================================
 # LINE通知テスト機能(非本番向け)
 # =======================================================================================
@@ -274,6 +292,43 @@ LINE通知設定は正常に動作しています 👍
 
     return jsonify({"status": "ok"})
 
+# ========================================================
+# Webhook エンドポイント
+# ========================================================
+@app.route("/callback", methods=["POST"])
+def callback():
+    signature = request.headers.get("X-Line-Signature")
+    body = request.get_data(as_text=True)
+
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return "OK"
+
+# ========================================================
+#  自動返信ロジック: User ID を返却する 
+# ========================================================
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    
+    user_id = event.source.user_id
+                            
+    # ユーザーに送るメッセージを作成
+    reply_text = (
+                   f"あなたの LINE User ID はこちらです：\n\n"
+                   f"{user_id}\n\n"
+                   f"この値をコピーしてアプリの設定画面に貼り付けてください。"
+    )
+                                        
+    # LINEで返信
+    try:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=reply_text)
+            )
+    except Exception as e:
+        app.logger.error(f"Error sending reply: {e}")
 
 # ========================================================================================
 # 監視ジョブ本体
@@ -332,6 +387,12 @@ def check_watchlist_job():
 # 起動
 # ==========================
 if __name__ == "__main__":
+    import os
+
+    # 環境変数PORTがあればそれを使う（App Runner用）
+    # なければ8080を使う（ローカル・EC2テスト用）
+    port = int(os.environ.get("PORT", 8080))
+
     scheduler.add_job(
         check_watchlist_job,
         trigger="interval",
@@ -341,5 +402,4 @@ if __name__ == "__main__":
     )
     scheduler.start()
     # 開発環境でVSCodeなどから実行する場合
-    app.run(debug=True, port=5000, use_reloader=False)
-
+    app.run(host="0.0.0.0", port=port, debug=False)
