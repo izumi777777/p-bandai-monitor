@@ -5,3 +5,4 @@ python-dotenv
 azure-ai-projects
 azure-identity
 apscheduler
+line-bot-sdk
