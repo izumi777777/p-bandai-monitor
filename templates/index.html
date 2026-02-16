@@ -20,6 +20,7 @@
     </style>
   </head>
   <body class="min-h-screen p-4 md:p-6 pb-20">
+    
     <div id="login-overlay" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
       <div class="glass rounded-2xl p-8 w-full max-w-sm text-center shadow-2xl">
         <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">PB Stock Monitor Pro</h1>
@@ -29,16 +30,19 @@
         <p id="auth-status" class="mt-4 text-[10px] text-slate-500 min-h-[15px]"></p>
       </div>
     </div>
+
     <header class="max-w-4xl mx-auto flex justify-between items-center mb-8">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-pulse"></div>
-        <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro v2.0-beta</h1>
+        <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro v2.2</h1>
       </div>
       <button id="logout-btn" class="text-slate-500 hover:text-red-400 text-xs transition-colors hidden px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/50">
         <i class="fas fa-sign-out-alt mr-2"></i>Logout
       </button>
     </header>
+
     <main class="max-w-4xl mx-auto space-y-8">
+      
       <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
         <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">New Monitor</h2>
         <div class="flex flex-col md:flex-row gap-3">
@@ -52,7 +56,26 @@
             <i class="fas fa-search"></i>調査する
           </button>
         </div>
+
+        <div class="mt-4 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="text-[10px] text-slate-500 flex flex-col sm:flex-row sm:items-center gap-1 w-full sm:w-auto">
+                <span><i class="fas fa-info-circle mr-1"></i>URLの一括登録が可能です。</span>
+                <span class="text-slate-600">(Max: 5件)</span>
+            </div>
+            
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <button id="download-template-btn" class="text-[10px] text-slate-500 hover:text-white underline decoration-slate-700 underline-offset-2 transition-colors flex items-center gap-1">
+                    <i class="fas fa-download"></i>雛形をDL
+                </button>
+                
+                <input type="file" id="csv-input" accept=".csv" class="hidden">
+                <button id="csv-upload-btn" class="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-dashed border-blue-500/30">
+                    <i class="fas fa-file-csv"></i> CSVインポート
+                </button>
+            </div>
+        </div>
       </section>
+
       <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
         <div class="glass rounded-3xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl border border-white/10">
           <div id="preview-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
@@ -62,6 +85,7 @@
           </div>
         </div>
       </div>
+
       <section class="space-y-4">
         <div class="flex items-center justify-between px-2">
           <div class="flex items-center gap-4">
@@ -71,6 +95,7 @@
         </div>
         <div id="watchlist" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
       </section>
+
       <details id="line-setup" class="glass rounded-xl overflow-hidden border border-white/5">
         <summary class="p-4 text-xs font-bold text-slate-400 cursor-pointer hover:bg-white/5 flex items-center justify-between">
           <span>
@@ -95,6 +120,7 @@
         </div>
       </details>
     </main>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
@@ -114,6 +140,7 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // DOM Elements
         const loginOverlay = document.getElementById("login-overlay");
         const loginBtn = document.getElementById("login-btn");
         const logoutBtn = document.getElementById("logout-btn");
@@ -128,10 +155,16 @@
         const itemCount = document.getElementById("item-count");
         const saveLineBtn = document.getElementById("save-line-btn");
         const testLineBtn = document.getElementById("test-line-btn");
+        
+        // CSV Elements
+        const csvInput = document.getElementById("csv-input");
+        const csvUploadBtn = document.getElementById("csv-upload-btn");
+        const downloadTemplateBtn = document.getElementById("download-template-btn");
 
         let currentUser = null;
         let currentInspectedData = null;
 
+        // --- Auth Logic ---
         loginBtn.onclick = async () => {
             const provider = new GoogleAuthProvider();
             try { await signInWithPopup(auth, provider); } catch(e) { console.error("Login Error:", e); }
@@ -155,6 +188,7 @@
             }
         });
 
+        // --- Inspect Logic ---
         inspectBtn.onclick = async () => {
             const url = urlInput.value.trim();
             if (!url.includes("p-bandai.jp/item/")) return alert("プレバン商品URLを入力してください");
@@ -242,20 +276,79 @@
             }
         };
 
+        // --- CSV Import & Template Download Logic (Updated) ---
+        
+        // テンプレートダウンロード処理
+        downloadTemplateBtn.onclick = () => {
+            const csvContent = "url\nhttps://p-bandai.jp/item/item-1000000000/\nhttps://p-bandai.jp/item/item-1000999999/";
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "monitor_template.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        csvUploadBtn.onclick = () => csvInput.click();
+
+        csvInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!confirm(`${file.name} をインポートしますか？\n(最大5件まで、URL列が必要です)`)) {
+                csvInput.value = "";
+                return;
+            }
+
+            const originalBtnText = csvUploadBtn.innerHTML;
+            csvUploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 送信中...';
+            csvUploadBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/watchlist/csv', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${idToken}` },
+                    body: formData
+                });
+                
+                const data = await res.json();
+
+                if (res.ok) {
+                    let msg = data.message + "\n";
+                    if (data.results.errors.length > 0) {
+                        msg += "\n⚠️ 一部エラー:\n" + data.results.errors.join("\n");
+                    }
+                    alert(msg);
+                } else {
+                    alert("エラー: " + (data.error || "不明なエラー"));
+                }
+            } catch (err) {
+                alert("送信エラー: " + err.message);
+            } finally {
+                csvInput.value = "";
+                csvUploadBtn.innerHTML = originalBtnText;
+                csvUploadBtn.disabled = false;
+            }
+        };
+
         // --- Watchlist Realtime Sync ---
         function initWatchlist(uid) {
-            console.log("🚀 監視開始: artifacts/pb-stock-monitor-pro/users/" + uid + "/watchlist");
+            console.log("🚀 監視開始: artifacts/" + APP_ID + "/users/" + uid + "/watchlist");
             
-            // コレクション参照を定義
-            const colRef = collection(db, 'artifacts', 'pb-stock-monitor-pro', 'users', uid, 'watchlist');
+            const colRef = collection(db, 'artifacts', APP_ID, 'users', uid, 'watchlist');
             
-            // リアルタイムリスナー
             onSnapshot(colRef, (snap) => {
                 console.log("📊 スナップショット受信! ドキュメント数:", snap.size);
                 itemCount.innerText = snap.size;
                 
                 if (snap.empty) {
-                    console.warn("⚠️ データが空です。パスが正しいか、ルールで拒否されていないか確認してください。");
                     watchlistContainer.innerHTML = `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
                     return;
                 }
@@ -265,41 +358,35 @@
                     const img = d.imageUrl || d.image_url || "";
                     const name = d.title || d.product_name || "不明な商品";
                     const status = d.statusText || d.status || "";
-                    const url = d.url || "#"; // URLがない場合のフォールバック
+                    const url = d.url || "#";
 
                     return `
                         <div class="glass p-3 rounded-xl flex gap-3 relative group hover:border-blue-500/30 transition-colors">
-                    <a href="${url}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-0"></a>
-                    
-                    <img src="${img}" class="w-12 h-12 object-cover rounded-lg bg-black relative z-10">
-                    
-                    <div class="flex-1 min-w-0 relative z-10">
-                        <p class="text-[10px] font-bold text-white truncate group-hover:text-blue-400 transition-colors">
-                            ${name} <i class="fas fa-external-link-alt text-[8px] ml-1 opacity-0 group-hover:opacity-100"></i>
-                        </p>
-                        <p class="text-[9px] text-blue-400">${d.price || ''} / ${status}</p>
-                    </div>
+                            <a href="${url}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-0"></a>
+                            
+                            <img src="${img}" class="w-12 h-12 object-cover rounded-lg bg-black relative z-10">
+                            
+                            <div class="flex-1 min-w-0 relative z-10">
+                                <p class="text-[10px] font-bold text-white truncate group-hover:text-blue-400 transition-colors">
+                                    ${name} <i class="fas fa-external-link-alt text-[8px] ml-1 opacity-0 group-hover:opacity-100"></i>
+                                </p>
+                                <p class="text-[9px] text-blue-400">${d.price || ''} / ${status}</p>
+                            </div>
 
-                    <button onclick="deleteItem('${doc.id}')" class="relative z-20 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all px-2">
-                        <i class="fas fa-trash-alt text-xs"></i>
-                    </button>
-                </div>`;
+                            <button onclick="deleteItem('${doc.id}')" class="relative z-20 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all px-2">
+                                <i class="fas fa-trash-alt text-xs"></i>
+                            </button>
+                        </div>`;
                 }).join("");
             }, (error) => {
-                // ここでエラーが出る場合、権限（ルール）不足です
-                console.error("❌ Firestoreリスナーエラー:", error.code, error.message);
-                if (error.code === 'permission-denied') {
-                    alert("Firestoreの読み取り権限がありません。セキュリティルールを確認してください。");
-                }
+                console.error("❌ Firestoreリスナーエラー:", error);
             });
         }
 
-        // 削除機能も 'history' に合わせる
         window.deleteItem = async (id) => {
             if (confirm("削除しますか？")) {
                 try {
-                    // 他の関数と同様に 'artifacts' と APP_ID を含める
-		    await deleteDoc(doc(db, 'artifacts', 'pb-stock-monitor-pro', 'users', currentUser.uid, 'watchlist', id));
+                    await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'watchlist', id));
                     console.log("🗑️ Deleted from watchlist:", id);
                 } catch (e) {
                     console.error("Delete Error:", e);
@@ -307,6 +394,7 @@
             }
         };
 
+        // --- Settings Logic ---
         async function loadSettings(uid) {
             const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'line'));
             if (snap.exists()) {

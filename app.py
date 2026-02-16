@@ -2,6 +2,11 @@ import os
 import json
 import logging
 import re
+
+# CSV調査対象URL追加用ライブラリ
+import csv
+import io
+
 from datetime import datetime
 from functools import wraps
 from flask import Flask, request, jsonify, render_template, abort
@@ -230,6 +235,101 @@ def api_watchlist_add():
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+# ==========================
+# CSV 一括登録エンドポイント (新規追加)
+# ==========================
+@app.route("/api/watchlist/csv", methods=["POST"])
+@login_required
+def api_watchlist_csv():
+    if not db:
+        return jsonify({"error": "データベースに接続できません"}), 500
+
+    # 1. ファイルチェック
+    if 'file' not in request.files:
+        return jsonify({"error": "ファイルが送信されていません"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "ファイルが選択されていません"}), 400
+
+    # 2. CSV読み込みとバリデーション
+    try:
+        # バイナリデータをテキストとして読み込む
+        stream = io.StringIO(file.stream.read().decode("utf-8"), newline=None)
+        csv_input = csv.DictReader(stream)
+        
+        # リスト化して件数チェック
+        rows = list(csv_input)
+        
+        if len(rows) > 5:
+            return jsonify({"error": "一度に登録できるのは最大5件までです"}), 400
+        
+        if not rows:
+             return jsonify({"error": "CSVデータが空です"}), 400
+             
+        # ヘッダーチェック (BOM付きUTF-8対策で、キーの中に'url'が含まれるか探す)
+        header_check = any("url" in key.lower() for key in rows[0].keys())
+        if not header_check:
+            return jsonify({"error": "CSVの一行目に 'url' という列が必要です"}), 400
+
+    except Exception as e:
+        return jsonify({"error": f"CSV解析エラー: {str(e)}"}), 400
+
+    # 3. ループ処理
+    uid = request.user["uid"]
+    results = {
+        "success": [],
+        "errors": []
+    }
+    
+    # ユーザーのコレクション参照
+    watchlist_ref = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("watchlist")
+
+    for index, row in enumerate(rows):
+        # キーの揺らぎ吸収（'URL', 'url ' などに対応）
+        url = None
+        for k, v in row.items():
+            if k.strip().lower() == "url":
+                url = v.strip()
+                break
+        
+        if not url:
+            results["errors"].append(f"{index+1}行目: URLが見つかりません")
+            continue
+
+        # プレバンURLか簡易チェック
+        if "p-bandai.jp" not in url:
+            results["errors"].append(f"{index+1}行目: プレミアムバンダイのURLではありません")
+            continue
+
+        # スクレイピング実行 (AIは使わず高速に)
+        scraped = scrape_premium_bandai(url)
+        
+        if scraped:
+            try:
+                watchlist_ref.add({
+                    "url": url,
+                    "title": scraped["title"],
+                    "price": scraped["price"],
+                    "imageUrl": scraped["imageUrl"],
+                    "inStock": scraped["inStock"],
+                    "statusText": scraped["statusText"],
+                    "createdAt": firestore.SERVER_TIMESTAMP,
+                    "lastChecked": firestore.SERVER_TIMESTAMP,
+                    "lastNotifiedStatus": scraped["inStock"]
+                })
+                results["success"].append(scraped["title"])
+            except Exception as e:
+                results["errors"].append(f"{index+1}行目: DB保存エラー {str(e)}")
+        else:
+            results["errors"].append(f"{index+1}行目: 商品情報の取得に失敗しました")
+
+    return jsonify({
+        "message": f"{len(results['success'])}件 登録しました",
+        "results": results
+    })
 
 
 # =======================================================================================
