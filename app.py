@@ -442,7 +442,6 @@ def check_watchlist_job():
     logger.info("⏰ 在庫監視ジョブ開始")
 
     users_ref = db.collection("artifacts").document(APP_ID).collection("users")
-    # stream() ではなく list_documents() を使うと、幽霊ドキュメントも取得できる
     user_refs = list(users_ref.list_documents())
     logger.info(f"👤 登録ユーザー数: {len(user_refs)}人")
 
@@ -452,17 +451,14 @@ def check_watchlist_job():
         # LINE設定取得
         line_ref = users_ref.document(uid).collection("settings").document("line").get()
         if not line_ref.exists:
-            logger.info(f"⏭️ [User:{uid}] LINE ID未設定のためスキップ")
             continue
 
         line_user_id = line_ref.to_dict().get("lineUserId")
         if not line_user_id:
-            logger.info(f"⏭️ [User:{uid}] LINE IDが空のためスキップ")
             continue
 
         watchlist_ref = users_ref.document(uid).collection("watchlist")
         items = list(watchlist_ref.stream())
-        logger.info(f"📋 [User:{uid}] 監視対象アイテム数: {len(items)}件")
 
         for item_doc in items:
             item = item_doc.to_dict()
@@ -471,15 +467,11 @@ def check_watchlist_job():
 
             scraped = scrape_premium_bandai(url)
             if not scraped:
-                logger.warning(f"⚠️ [Item:{title}] スクレイピング失敗 (アクセス不能など)")
                 continue
 
             prev_status = item.get("inStock", False)
             current_status = scraped["inStock"]
             
-            # ここで現在の判定状況をログ出力！
-            logger.info(f"🔍 [Item:{title}] DB前回:{prev_status} ➔ サイト現在:{current_status}")
-
             # 状態変化チェック
             if prev_status != current_status:
                 logger.info(f"🔔 在庫変化検知: {title}")
@@ -500,6 +492,127 @@ def check_watchlist_job():
 状態: {scraped["statusText"]}
 {url}"""
                 send_line_notification(line_user_id, msg)
+
+
+# ========================================================
+# AIによるオススメ商品提案 API
+# ========================================================
+@app.route("/api/recommendations", methods=["GET"])
+@login_required
+def api_recommendations():
+    if not project_client or not agent:
+        return jsonify({"error": "AI Agentが設定されていません"}), 500
+
+    logger.info("🤖 AIにおすすめ商品をリクエスト中...")
+
+    try:
+        thread = project_client.agents.threads.create()
+        
+        # AIへのプロンプト（JSON形式で確実に出力させる）
+        prompt = """
+        あなたはプレミアムバンダイ（ガンプラ、METAL BUILD、仮面ライダーCSM、アニメグッズなど）の専門家であり、転売対策やコレクター向けの在庫監視のアドバイザーです。
+        現在、需要が高く、在庫監視をしておくべき（再販が期待される、または人気で即完売した）プレミアムバンダイの商品を3つ提案してください。
+        
+        必ず以下のJSON配列フォーマットのみを出力してください（Markdownの ```json 等の装飾は絶対に含めないでください）。
+        [
+          {
+            "title": "正確な商品名",
+            "url": "プレミアムバンダイの実際のURL ([https://p-bandai.jp/item/item-で始まるもの](https://p-bandai.jp/item/item-で始まるもの))",
+            "reason": "おすすめの理由（50文字程度。なぜ監視すべきか）"
+          }
+        ]
+        """
+        
+        project_client.agents.messages.create(
+            thread_id=thread.id, role="user", content=prompt
+        )
+        
+        project_client.agents.runs.create_and_process(
+            thread_id=thread.id, agent_id=agent.id
+        )
+        
+        messages = project_client.agents.messages.list(
+            thread_id=thread.id, order=ListSortOrder.DESCENDING
+        )
+
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                text = m.text_messages[0].text.value
+                try:
+                    # AIの返答からJSON配列部分だけを抽出
+                    match = re.search(r"\[.*\]", text, re.DOTALL)
+                    if match:
+                        recommendations = json.loads(match.group())
+                        return jsonify({"recommendations": recommendations})
+                except Exception as parse_err:
+                    logger.error(f"JSONパースエラー: {parse_err} \nAIの生テキスト: {text}")
+                    pass
+        
+        return jsonify({"error": "AIが正しいフォーマットで返答しませんでした"}), 500
+
+    except Exception as e:
+        logger.error(f"AI提案エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+    
+# ========================================================
+# URL一括登録エンドポイント (JSON版・AI提案一括登録用)
+# ========================================================
+@app.route("/api/watchlist/bulk", methods=["POST"])
+@login_required
+def api_watchlist_bulk():
+    if not db:
+        return jsonify({"error": "データベースに接続できません"}), 500
+
+    urls = request.json.get("urls", [])
+    if not urls:
+        return jsonify({"error": "URLが指定されていません"}), 400
+
+    if len(urls) > 5:
+        return jsonify({"error": "一度に登録できるのは最大5件までです"}), 400
+
+    uid = request.user["uid"]
+    results = {
+        "success": [],
+        "errors": []
+    }
+    
+    watchlist_ref = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("watchlist")
+
+    for index, url in enumerate(urls):
+        if not url:
+            continue
+
+        if "p-bandai.jp" not in url and "/test-item" not in url:
+            results["errors"].append(f"{index+1}件目: 対象外のURLです")
+            continue
+
+        # AIは使わず高速にスクレイピングのみ
+        scraped = scrape_premium_bandai(url)
+        
+        if scraped:
+            try:
+                watchlist_ref.add({
+                    "url": url,
+                    "title": scraped["title"],
+                    "price": scraped["price"],
+                    "imageUrl": scraped["imageUrl"],
+                    "inStock": scraped["inStock"],
+                    "statusText": scraped["statusText"],
+                    "createdAt": firestore.SERVER_TIMESTAMP,
+                    "lastChecked": firestore.SERVER_TIMESTAMP,
+                    "lastNotifiedStatus": scraped["inStock"]
+                })
+                results["success"].append(scraped["title"])
+            except Exception as e:
+                results["errors"].append(f"{index+1}件目: DB保存エラー {str(e)}")
+        else:
+            results["errors"].append(f"{index+1}件目: 商品情報の取得に失敗しました")
+
+    return jsonify({
+        "message": f"{len(results['success'])}件 登録しました",
+        "results": results
+    })
 
 
 # ========================================================

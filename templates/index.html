@@ -34,7 +34,7 @@
     <header class="max-w-4xl mx-auto flex justify-between items-center mb-8">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-pulse"></div>
-        <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro v2.0.4-beta</h1>
+        <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro v2.0.5-beta</h1>
       </div>
       <button id="logout-btn" class="text-slate-500 hover:text-red-400 text-xs transition-colors hidden px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/50">
         <i class="fas fa-sign-out-alt mr-2"></i>Logout
@@ -43,8 +43,26 @@
 
     <main class="max-w-4xl mx-auto space-y-8">
       
-      <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
-        <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">New Monitor</h2>
+  <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
+        
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
+            <div>
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">New Monitor</h2>
+                <p class="text-[10px] text-slate-400 leading-relaxed">
+                    監視したい商品のURLを入力するか、AIに今熱いトレンド商品を提案させます。
+                </p>
+            </div>
+            
+            <div class="flex flex-col items-start sm:items-end shrink-0 w-full sm:w-auto">
+                <button id="ai-suggest-btn" class="w-full sm:w-auto text-[11px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-500/30 px-4 py-2 rounded-full hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-lg shadow-emerald-900/10">
+                    <i class="fas fa-magic"></i> AIにトレンドを提案させる
+                </button>
+                <span class="text-[8px] text-emerald-500/70 mt-1 mr-2 hidden sm:block">
+                    ※最大5件まで一括登録可能
+                </span>
+            </div>
+        </div>
+
         <div class="flex flex-col md:flex-row gap-3">
           <div class="flex-1 relative">
             <input id="url-input" type="text" placeholder="https://p-bandai.jp/item/item-..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600">
@@ -161,8 +179,15 @@
         const csvUploadBtn = document.getElementById("csv-upload-btn");
         const downloadTemplateBtn = document.getElementById("download-template-btn");
 
+        // AI Elements
+        const aiSuggestBtn = document.getElementById("ai-suggest-btn");
+        const aiRecsContainer = document.getElementById("ai-recs-container");
+        const aiRecsList = document.getElementById("ai-recs-list");
+        const aiRecsLoader = document.getElementById("ai-recs-loader");
+
         let currentUser = null;
         let currentInspectedData = null;
+        let currentAiRecs = []; // AI提案データ保持用
 
         // --- Auth Logic ---
         loginBtn.onclick = async () => {
@@ -188,12 +213,101 @@
             }
         });
 
-        // --- Inspect Logic ---
-        //inspectBtn.onclick = async () => {
-            //const url = urlInput.value.trim();
-            //if (!url.includes("p-bandai.jp/item/")) return alert("プレバン商品URLを入力してください");
+        // --- AI おすすめ商品取得・一括登録ロジック ---
+        aiSuggestBtn.onclick = async () => {
+            // UI表示の切り替え
+            aiRecsContainer.classList.remove("hidden");
+            aiRecsList.innerHTML = `<p class="text-[10px] text-slate-400 text-center py-2">AIがトレンドを分析しています... (約10〜20秒)</p>`;
+            aiRecsLoader.classList.remove("hidden");
+            aiSuggestBtn.disabled = true;
 
-            //inspectBtn.disabled = true;
+            try {
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/recommendations', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${idToken}` }
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                currentAiRecs = data.recommendations;
+
+                // 提案リストの描画
+                let html = currentAiRecs.map(item => `
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-white/5 flex flex-col sm:flex-row justify-between gap-2 items-start sm:items-center">
+                        <div class="flex-1">
+                            <h4 class="text-xs font-bold text-white mb-1">
+                                <a href="${item.url}" target="_blank" class="hover:text-blue-400 hover:underline"><i class="fas fa-link text-[10px] mr-1"></i>${item.title}</a>
+                            </h4>
+                            <p class="text-[10px] text-emerald-400/80">${item.reason}</p>
+                        </div>
+                    </div>
+                `).join("");
+
+                // 一括登録ボタンを追加
+                if (currentAiRecs.length > 0) {
+                    html += `
+                    <div class="mt-3 flex justify-end">
+                        <button id="ai-bulk-add-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-2">
+                            <i class="fas fa-layer-group"></i> ${currentAiRecs.length}件すべて一括登録する
+                        </button>
+                    </div>
+                    `;
+                }
+
+                aiRecsList.innerHTML = html;
+
+                // 一括登録処理のバインド
+                const bulkAddBtn = document.getElementById("ai-bulk-add-btn");
+                if (bulkAddBtn) {
+                    bulkAddBtn.onclick = async () => {
+                        bulkAddBtn.disabled = true;
+                        bulkAddBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登録中...';
+                        
+                        // URLだけの配列を作成
+                        const urls = currentAiRecs.map(item => item.url);
+                        
+                        try {
+                            const resBulk = await fetch('/api/watchlist/bulk', {
+                                method: 'POST',
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${idToken}`
+                                },
+                                body: JSON.stringify({ urls })
+                            });
+
+                            const dataBulk = await resBulk.json();
+                            if (!resBulk.ok) throw new Error(dataBulk.error || "一括登録に失敗しました");
+
+                            let msg = dataBulk.message + "\n";
+                            if (dataBulk.results.errors.length > 0) {
+                                msg += "\n⚠️ 一部エラー:\n" + dataBulk.results.errors.join("\n");
+                            }
+                            alert(msg);
+                            
+                            // 完了したらパネルを閉じる
+                            aiRecsContainer.classList.add("hidden");
+                            currentAiRecs = [];
+                        } catch (err) {
+                            alert("エラー: " + err.message);
+                            bulkAddBtn.disabled = false;
+                            bulkAddBtn.innerHTML = '<i class="fas fa-layer-group"></i> 一括登録を再試行';
+                        }
+                    };
+                }
+
+            } catch (err) {
+                console.error("AI Recommendation Error:", err);
+                aiRecsList.innerHTML = `<p class="text-[10px] text-red-400 py-2">エラー: ${err.message}</p>`;
+            } finally {
+                aiRecsLoader.classList.add("hidden");
+                aiSuggestBtn.disabled = false;
+            }
+        };
+
+        // --- Inspect Logic ---
         // --- テスト用 ---
         inspectBtn.onclick = async () => {
             const url = urlInput.value.trim();
@@ -285,9 +399,7 @@
             }
         };
 
-        // --- CSV Import & Template Download Logic (Updated) ---
-        
-        // テンプレートダウンロード処理
+        // --- CSV Import & Template Download Logic ---
         downloadTemplateBtn.onclick = () => {
             const csvContent = "url\nhttps://p-bandai.jp/item/item-1000000000/\nhttps://p-bandai.jp/item/item-1000999999/";
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
