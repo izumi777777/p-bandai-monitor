@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import re
+import urllib.parse
 
 # CSV調査対象URL追加用ライブラリ
 import csv
@@ -336,6 +337,129 @@ def api_watchlist_csv():
         "results": results
     })
 
+# =======================================================================================
+# ヤフオク高速落札相場取得
+# =======================================================================================
+def scrape_yahuoku_closed(keyword):
+    """
+    ヤフオクの落札相場検索をスクレイピングし、直近の落札価格の平均と最高値を返す
+    """
+    try:
+        # キーワードをURLエンコード
+        encoded_keyword = urllib.parse.quote(keyword)
+        # ヤフオク落札相場検索URL (b=1&n=20で1ページ目20件を取得)
+        url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?va={encoded_keyword}&b=1&n=20"
+        
+        # プレバン同様に impersonate で Bot 弾きを回避
+        res = requests.get(url, impersonate="chrome120", timeout=15)
+        if res.status_code != 200:
+            logger.error(f"❌ ヤフオクアクセス失敗: {res.status_code}")
+            return None
+            
+        html = res.text
+        
+        # ヤフオクの価格表示部分 (class="Product__priceValue...") から数字だけを抽出
+        # ※HTML構造は将来変更される可能性があります
+        price_matches = re.findall(r'class="Product__priceValue[^>]*>([\d,]+)', html)
+        
+        prices = []
+        for p in price_matches:
+            clean_p = p.replace(',', '')
+            if clean_p.isdigit():
+                prices.append(int(clean_p))
+
+        if not prices:
+            logger.warning(f"⚠️ 落札データが見つかりませんでした: {keyword}")
+            return None
+
+        # 極端な外れ値や即決価格のブレを考慮し、取得できた中から上位のデータを計算
+        valid_prices = sorted(prices, reverse=True)
+        
+        max_price = max(valid_prices)
+        avg_price = sum(valid_prices) // len(valid_prices)
+        
+        return {
+            "max_price": f"{max_price:,}",
+            "avg_price": f"{avg_price:,}",
+            "sample_count": len(valid_prices)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ ヤフオクスクレイピングエラー: {e}")
+        return None
+
+
+# ==============================================================================================
+# AIせどり鑑定士 (ヤフオク相場 ➔ AI判定) API
+# ==============================================================================================
+@app.route("/api/scout", methods=["POST"])
+@login_required
+def api_scout_item():
+    keyword = request.json.get("keyword")
+    if not keyword:
+        return jsonify({"error": "検索キーワードが指定されていません"}), 400
+
+    logger.info(f"🔎 AI鑑定開始: {keyword}")
+
+    # 1. ヤフオクの落札相場を高速スクレイピング
+    market_data = scrape_yahuoku_closed(keyword)
+    if not market_data:
+        return jsonify({"error": "ヤフオクの落札相場データが見つかりませんでした。別のキーワードをお試しください。"}), 404
+
+    # 2. Azure AI Agent による鑑定依頼
+    try:
+        thread = project_client.agents.threads.create()
+        
+        # 古物商としてのノウハウをAIにプロンプトで指示
+        prompt = f"""
+        あなたはプロの古物商・せどりアドバイザーです。
+        ユーザーが検索した商品「{keyword}」のヤフオク直近落札データは以下の通りです。
+        最高値: {market_data['max_price']}円, 平均値: {market_data['avg_price']}円, サンプル数: {market_data['sample_count']}件
+
+        このデータをもとに、メルカリやリサイクルショップで仕入れる際の「推奨仕入れ上限価格（販売手数料や送料、利益を考慮）」と「検品時の注意点」をアドバイスしてください。
+        必ず以下のJSONフォーマットのみを出力してください（Markdownの ```json 等の装飾は絶対に含めないでください）。
+        {{
+            "target_buy_price": "〇〇", (例: 15,000 ※数値とカンマのみの文字列)
+            "profitability": "A(高利益) / B(普通) / C(薄利・リスク高) のいずれか",
+            "ai_advice": "仕入れ時の注意点（例：『第何版か確認必須』『付属品の欠品に注意』など具体的なアドバイスを100〜150文字程度で）"
+        }}
+        """
+        
+        project_client.agents.messages.create(
+            thread_id=thread.id, role="user", content=prompt
+        )
+        
+        project_client.agents.runs.create_and_process(
+            thread_id=thread.id, agent_id=agent.id
+        )
+        
+        messages = project_client.agents.messages.list(
+            thread_id=thread.id, order=ListSortOrder.DESCENDING
+        )
+
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                text = m.text_messages[0].text.value
+                try:
+                    # AIの返答からJSON部分だけを抽出
+                    match = re.search(r"\{.*\}", text, re.DOTALL)
+                    if match:
+                        appraisal = json.loads(match.group())
+                        return jsonify({
+                            "keyword": keyword,
+                            "market_data": market_data,
+                            "appraisal": appraisal
+                        })
+                except Exception as parse_err:
+                    logger.error(f"JSONパースエラー: {parse_err} \nAIの生テキスト: {text}")
+                    pass
+        
+        return jsonify({"error": "AIが正しいフォーマットで返答しませんでした"}), 500
+
+    except Exception as e:
+        logger.error(f"AI鑑定エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+    
 
 # =======================================================================================
 # LINE通知機能

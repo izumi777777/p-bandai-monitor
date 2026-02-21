@@ -41,102 +41,145 @@
       </button>
     </header>
 
+    <div class="max-w-4xl mx-auto flex space-x-2 border-b border-white/10 mb-6">
+        <button id="tab-monitor" class="px-5 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-400 transition-colors">
+            <i class="fas fa-box-open mr-1"></i> プレバン監視
+        </button>
+        <button id="tab-scout" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors">
+            <i class="fas fa-search-dollar mr-1"></i> AI相場鑑定 <span class="ml-1 text-[8px] bg-yellow-600/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30">PRO</span>
+        </button>
+    </div>
+
     <main class="max-w-4xl mx-auto space-y-8">
       
-  <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
-        
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
-            <div>
-                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">New Monitor</h2>
-                <p class="text-[10px] text-slate-400 leading-relaxed">
-                    監視したい商品のURLを入力するか、AIに今熱いトレンド商品を提案させます。
-                </p>
-            </div>
-            
-            <div class="flex flex-col items-start sm:items-end shrink-0 w-full sm:w-auto">
-                <button id="ai-suggest-btn" class="w-full sm:w-auto text-[11px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-500/30 px-4 py-2 rounded-full hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-lg shadow-emerald-900/10">
-                    <i class="fas fa-magic"></i> AIにトレンドを提案させる
-                </button>
-                <span class="text-[8px] text-emerald-500/70 mt-1 mr-2 hidden sm:block">
-                    ※最大5件まで一括登録可能
-                </span>
-            </div>
-        </div>
-
-        <div class="flex flex-col md:flex-row gap-3">
-          <div class="flex-1 relative">
-            <input id="url-input" type="text" placeholder="https://p-bandai.jp/item/item-..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600">
-            <div id="input-loader" class="absolute right-4 top-1/2 -translate-y-1/2 hidden">
-              <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5"></div>
-            </div>
-          </div>
-          <button id="inspect-btn" class="btn-primary text-white px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-            <i class="fas fa-search"></i>調査する
-          </button>
-        </div>
-
-        <div class="mt-4 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="text-[10px] text-slate-500 flex flex-col sm:flex-row sm:items-center gap-1 w-full sm:w-auto">
-                <span><i class="fas fa-info-circle mr-1"></i>URLの一括登録が可能です。</span>
-                <span class="text-slate-600">(Max: 5件)</span>
-            </div>
-            
-            <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
-                <button id="download-template-btn" class="text-[10px] text-slate-500 hover:text-white underline decoration-slate-700 underline-offset-2 transition-colors flex items-center gap-1">
-                    <i class="fas fa-download"></i>雛形をDL
-                </button>
+      <div id="view-monitor" class="space-y-8 animate-in fade-in duration-300">
+          <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
+                <div>
+                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">New Monitor</h2>
+                    <p class="text-[10px] text-slate-400 leading-relaxed">
+                        監視したい商品のURLを入力するか、AIに今熱いトレンド商品を提案させます。
+                    </p>
+                </div>
                 
-                <input type="file" id="csv-input" accept=".csv" class="hidden">
-                <button id="csv-upload-btn" class="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-dashed border-blue-500/30">
-                    <i class="fas fa-file-csv"></i> CSVインポート
-                </button>
+                <div class="flex flex-col items-start sm:items-end shrink-0 w-full sm:w-auto">
+                    <button id="ai-suggest-btn" class="w-full sm:w-auto text-[11px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-500/30 px-4 py-2 rounded-full hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-lg shadow-emerald-900/10">
+                        <i class="fas fa-magic"></i> AIにトレンドを提案させる
+                    </button>
+                    <span class="text-[8px] text-emerald-500/70 mt-1 mr-2 hidden sm:block">
+                        ※最大5件まで一括登録可能
+                    </span>
+                </div>
             </div>
-        </div>
-      </section>
 
-      <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
-        <div class="glass rounded-3xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl border border-white/10">
-          <div id="preview-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
-          <div class="p-4 bg-slate-900/50 border-t border-white/5 flex gap-3">
-            <button id="preview-cancel" class="flex-1 py-3 rounded-xl text-sm font-bold text-slate-400 btn-ghost">キャンセル</button>
-            <button id="confirm-add-btn" class="flex-[2] py-3 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">この商品を監視する</button>
+            <div id="ai-recs-container" class="hidden mb-4 p-4 bg-emerald-900/10 border border-emerald-500/20 rounded-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xs font-bold text-emerald-400"><i class="fas fa-sparkles mr-1"></i>AIが選んだ注目商品</h3>
+                    <div id="ai-recs-loader" class="hidden loader ease-linear rounded-full border-2 border-t-2 border-emerald-400 h-3 w-3"></div>
+                </div>
+                <div id="ai-recs-list" class="flex flex-col gap-2"></div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-3">
+              <div class="flex-1 relative">
+                <input id="url-input" type="text" placeholder="https://p-bandai.jp/item/item-..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600">
+                <div id="input-loader" class="absolute right-4 top-1/2 -translate-y-1/2 hidden">
+                  <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5"></div>
+                </div>
+              </div>
+              <button id="inspect-btn" class="btn-primary text-white px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                <i class="fas fa-search"></i>調査する
+              </button>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="text-[10px] text-slate-500 flex flex-col sm:flex-row sm:items-center gap-1 w-full sm:w-auto">
+                    <span><i class="fas fa-info-circle mr-1"></i>URLの一括登録が可能です。</span>
+                    <span class="text-slate-600">(Max: 5件)</span>
+                </div>
+                
+                <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                    <button id="download-template-btn" class="text-[10px] text-slate-500 hover:text-white underline decoration-slate-700 underline-offset-2 transition-colors flex items-center gap-1">
+                        <i class="fas fa-download"></i>雛形をDL
+                    </button>
+                    
+                    <input type="file" id="csv-input" accept=".csv" class="hidden">
+                    <button id="csv-upload-btn" class="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-dashed border-blue-500/30">
+                        <i class="fas fa-file-csv"></i> CSVインポート
+                    </button>
+                </div>
+            </div>
+          </section>
+
+          <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+            <div class="glass rounded-3xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl border border-white/10">
+              <div id="preview-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
+              <div class="p-4 bg-slate-900/50 border-t border-white/5 flex gap-3">
+                <button id="preview-cancel" class="flex-1 py-3 rounded-xl text-sm font-bold text-slate-400 btn-ghost">キャンセル</button>
+                <button id="confirm-add-btn" class="flex-[2] py-3 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">この商品を監視する</button>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <section class="space-y-4">
+            <div class="flex items-center justify-between px-2">
+              <div class="flex items-center gap-4">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Watchlist</h2>
+                <span id="item-count" class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-mono">0</span>
+              </div>
+            </div>
+            <div id="watchlist" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+          </section>
+
+          <details id="line-setup" class="glass rounded-xl overflow-hidden border border-white/5">
+            <summary class="p-4 text-xs font-bold text-slate-400 cursor-pointer hover:bg-white/5 flex items-center justify-between">
+              <span>
+                <i class="fab fa-line mr-2 text-emerald-500"></i>LINE通知設定 (クリックで開く)
+              </span>
+              <i class="fas fa-chevron-down text-[10px]"></i>
+            </summary>
+            <div class="p-5 border-t border-white/5 bg-slate-900/30">
+              <p class="text-[11px] text-slate-500 mb-4">在庫変動時に通知を受け取るには、LINE USER IDを登録してください。
+                <br>
+                <span class="text-blue-400">※LINE Developers等のプロファイルから取得したID（Uから始まる文字列）を入力します。</span>
+              </p>
+              <div class="flex flex-col gap-3">
+                <div class="flex gap-2">
+                  <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-emerald-500/50">
+                  <button id="save-line-btn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all">保存</button>
+                </div>
+                <button id="test-line-btn" class="text-[10px] text-slate-400 hover:text-white transition-colors flex items-center gap-1 justify-center py-2 border border-dashed border-slate-700 rounded-lg">
+                  <i class="fas fa-paper-plane"></i>保存したIDにテスト通知を送る
+                </button>
+              </div>
+            </div>
+          </details>
       </div>
 
-      <section class="space-y-4">
-        <div class="flex items-center justify-between px-2">
-          <div class="flex items-center gap-4">
-            <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Watchlist</h2>
-            <span id="item-count" class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-mono">0</span>
-          </div>
-        </div>
-        <div id="watchlist" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-      </section>
+      <div id="view-scout" class="hidden space-y-8 animate-in fade-in duration-300">
+          <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
+              <div class="absolute -top-10 -right-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
-      <details id="line-setup" class="glass rounded-xl overflow-hidden border border-white/5">
-        <summary class="p-4 text-xs font-bold text-slate-400 cursor-pointer hover:bg-white/5 flex items-center justify-between">
-          <span>
-            <i class="fab fa-line mr-2 text-emerald-500"></i>LINE通知設定 (クリックで開く)
-          </span>
-          <i class="fas fa-chevron-down text-[10px]"></i>
-        </summary>
-        <div class="p-5 border-t border-white/5 bg-slate-900/30">
-          <p class="text-[11px] text-slate-500 mb-4">在庫変動時に通知を受け取るには、LINE USER IDを登録してください。
-            <br>
-            <span class="text-blue-400">※LINE Developers等のプロファイルから取得したID（Uから始まる文字列）を入力します。</span>
-          </p>
-          <div class="flex flex-col gap-3">
-            <div class="flex gap-2">
-              <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-emerald-500/50">
-              <button id="save-line-btn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all">保存</button>
-            </div>
-            <button id="test-line-btn" class="text-[10px] text-slate-400 hover:text-white transition-colors flex items-center gap-1 justify-center py-2 border border-dashed border-slate-700 rounded-lg">
-              <i class="fas fa-paper-plane"></i>保存したIDにテスト通知を送る
-            </button>
-          </div>
-        </div>
-      </details>
+              <h2 class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2"><i class="fas fa-robot mr-1"></i> AIせどり鑑定士</h2>
+              <p class="text-[11px] text-slate-400 mb-6">ヤフオクの直近の落札相場を分析し、メルカリ等での仕入れ目安と検品時の注意点をAIがアドバイスします。</p>
+              
+              <div class="flex flex-col md:flex-row gap-3 relative z-10">
+                  <div class="flex-1 relative">
+                      <input id="scout-input" type="text" placeholder="検索キーワード (例: CSM ファイズギア ver.2)" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-yellow-500/50 transition-colors placeholder:text-slate-600">
+                      <div id="scout-loader" class="absolute right-4 top-1/2 -translate-y-1/2 hidden">
+                          <div class="loader ease-linear rounded-full border-2 border-t-2 border-yellow-500 h-5 w-5"></div>
+                      </div>
+                  </div>
+                  <button id="scout-btn" class="bg-yellow-500 hover:bg-yellow-400 text-slate-900 px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                      <i class="fas fa-gavel"></i> 相場を鑑定
+                  </button>
+              </div>
+
+              <div id="scout-result" class="hidden mt-6 bg-slate-900/50 border border-yellow-500/20 rounded-xl p-5 shadow-inner">
+                  </div>
+          </section>
+      </div>
+
     </main>
 
     <script type="module">
@@ -185,9 +228,102 @@
         const aiRecsList = document.getElementById("ai-recs-list");
         const aiRecsLoader = document.getElementById("ai-recs-loader");
 
+        // Tab & Scout Elements
+        const tabMonitor = document.getElementById("tab-monitor");
+        const tabScout = document.getElementById("tab-scout");
+        const viewMonitor = document.getElementById("view-monitor");
+        const viewScout = document.getElementById("view-scout");
+        const scoutInput = document.getElementById("scout-input");
+        const scoutBtn = document.getElementById("scout-btn");
+        const scoutLoader = document.getElementById("scout-loader");
+        const scoutResult = document.getElementById("scout-result");
+
         let currentUser = null;
         let currentInspectedData = null;
         let currentAiRecs = []; // AI提案データ保持用
+
+        // --- Tab Switching Logic ---
+        function switchTab(tabName) {
+            if (tabName === 'monitor') {
+                tabMonitor.className = "px-5 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-400 transition-colors";
+                tabScout.className = "px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors";
+                viewMonitor.classList.remove('hidden');
+                viewScout.classList.add('hidden');
+            } else {
+                tabScout.className = "px-5 py-3 text-sm font-bold text-yellow-500 border-b-2 border-yellow-500 transition-colors";
+                tabMonitor.className = "px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors";
+                viewScout.classList.remove('hidden');
+                viewMonitor.classList.add('hidden');
+            }
+        }
+
+        tabMonitor.onclick = () => switchTab('monitor');
+        tabScout.onclick = () => switchTab('scout');
+
+        // --- Scout Appraise Logic ---
+        scoutBtn.onclick = async () => {
+            const keyword = scoutInput.value.trim();
+            if (!keyword) return alert("検索キーワードを入力してください");
+
+            scoutBtn.disabled = true;
+            scoutLoader.classList.remove("hidden");
+            scoutResult.classList.add("hidden");
+            scoutResult.innerHTML = "";
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/scout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                    body: JSON.stringify({ keyword })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                // 利益期待度（A, B, C）に応じて色を変えるロジック
+                let rankColor = "text-yellow-400 bg-yellow-500/20 border-yellow-500/30"; // デフォルト
+                if (data.appraisal.profitability.includes("A")) {
+                    rankColor = "text-emerald-400 bg-emerald-500/20 border-emerald-500/30"; // 高利益は緑
+                } else if (data.appraisal.profitability.includes("C")) {
+                    rankColor = "text-red-400 bg-red-500/20 border-red-500/30"; // 薄利・リスクは赤
+                }
+
+                // 結果の描画（イエロー基調）
+                scoutResult.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="bg-slate-950 p-4 rounded-lg border border-white/5 text-center">
+                            <p class="text-[10px] text-slate-400 mb-1">ヤフオク平均落札額</p>
+                            <p class="text-xl font-mono text-white">${data.market_data.avg_price} <span class="text-xs">円</span></p>
+                        </div>
+                        <div class="bg-slate-950 p-4 rounded-lg border border-yellow-500/30 text-center shadow-[0_0_10px_rgba(234,179,8,0.1)] relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-full h-1 bg-yellow-500"></div>
+                            <p class="text-[10px] text-yellow-500/80 font-bold mb-1 mt-1">推奨仕入れ上限 (目安)</p>
+                            <p class="text-xl font-mono text-yellow-500 font-bold">${data.appraisal.target_buy_price} <span class="text-xs">円</span></p>
+                        </div>
+                        <div class="bg-slate-950 p-4 rounded-lg border border-white/5 text-center flex flex-col justify-center items-center">
+                            <p class="text-[10px] text-slate-400 mb-1">利益期待度</p>
+                            <span class="inline-block px-4 py-1 rounded-full text-sm font-bold border ${rankColor}">
+                                Rank: ${data.appraisal.profitability}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="bg-yellow-900/10 p-4 rounded-lg border border-yellow-500/30">
+                        <h3 class="text-[11px] font-bold text-yellow-500 mb-2"><i class="fas fa-comment-dots mr-1"></i> AI 鑑定アドバイス</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed">${data.appraisal.ai_advice}</p>
+                    </div>
+                `;
+                scoutResult.classList.remove("hidden");
+
+            } catch (err) {
+                console.error("Scout Error:", err);
+                scoutResult.innerHTML = `<p class="text-xs text-red-400 text-center"><i class="fas fa-exclamation-triangle mr-1"></i> 鑑定エラー: ${err.message}</p>`;
+                scoutResult.classList.remove("hidden");
+            } finally {
+                scoutBtn.disabled = false;
+                scoutLoader.classList.add("hidden");
+            }
+        };
 
         // --- Auth Logic ---
         loginBtn.onclick = async () => {
@@ -215,7 +351,7 @@
 
         // --- AI おすすめ商品取得・一括登録ロジック ---
         aiSuggestBtn.onclick = async () => {
-            // UI表示の切り替え
+            const originalBtnHtml = aiSuggestBtn.innerHTML;
             aiRecsContainer.classList.remove("hidden");
             aiRecsList.innerHTML = `<p class="text-[10px] text-slate-400 text-center py-2">AIがトレンドを分析しています... (約10〜20秒)</p>`;
             aiRecsLoader.classList.remove("hidden");
@@ -233,7 +369,6 @@
 
                 currentAiRecs = data.recommendations;
 
-                // 提案リストの描画
                 let html = currentAiRecs.map(item => `
                     <div class="bg-slate-900/50 p-3 rounded-lg border border-white/5 flex flex-col sm:flex-row justify-between gap-2 items-start sm:items-center">
                         <div class="flex-1">
@@ -245,7 +380,6 @@
                     </div>
                 `).join("");
 
-                // 一括登録ボタンを追加
                 if (currentAiRecs.length > 0) {
                     html += `
                     <div class="mt-3 flex justify-end">
@@ -258,14 +392,12 @@
 
                 aiRecsList.innerHTML = html;
 
-                // 一括登録処理のバインド
                 const bulkAddBtn = document.getElementById("ai-bulk-add-btn");
                 if (bulkAddBtn) {
                     bulkAddBtn.onclick = async () => {
                         bulkAddBtn.disabled = true;
                         bulkAddBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登録中...';
                         
-                        // URLだけの配列を作成
                         const urls = currentAiRecs.map(item => item.url);
                         
                         try {
@@ -287,7 +419,6 @@
                             }
                             alert(msg);
                             
-                            // 完了したらパネルを閉じる
                             aiRecsContainer.classList.add("hidden");
                             currentAiRecs = [];
                         } catch (err) {
@@ -308,10 +439,8 @@
         };
 
         // --- Inspect Logic ---
-        // --- テスト用 ---
         inspectBtn.onclick = async () => {
             const url = urlInput.value.trim();
-            // プレバンURL、またはテスト用URL（/test-item）を含んでいれば許可する
             if (!url.includes("p-bandai.jp/item/") && !url.includes("/test-item")) {
                 return alert("プレバン商品URL、またはテスト用URLを入力してください");
             }
