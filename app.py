@@ -4,6 +4,9 @@ import logging
 import re
 import urllib.parse
 
+# --- ヤフオクスクレイピング用 ---
+from bs4 import BeautifulSoup
+
 # CSV調査対象URL追加用ライブラリ
 import csv
 import io
@@ -345,49 +348,62 @@ def scrape_yahuoku_closed(keyword):
     ヤフオクの落札相場検索をスクレイピングし、直近の落札価格の平均と最高値を返す
     """
     try:
-        # キーワードをURLエンコード
         encoded_keyword = urllib.parse.quote(keyword)
-        # ヤフオク落札相場検索URL (b=1&n=20で1ページ目20件を取得)
-        url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?va={encoded_keyword}&b=1&n=20"
+        # ▼ 変更1: n=20 を n=50 に変更（1ページの最大取得件数を増やす）
+        url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?p={encoded_keyword}&n=50"
         
-        # プレバン同様に impersonate で Bot 弾きを回避
         res = requests.get(url, impersonate="chrome120", timeout=15)
         if res.status_code != 200:
             logger.error(f"❌ ヤフオクアクセス失敗: {res.status_code}")
             return None
             
-        html = res.text
+        soup = BeautifulSoup(res.text, "html.parser")
+        product_items = soup.find_all("li", class_="Product")
         
-        # ヤフオクの価格表示部分 (class="Product__priceValue...") から数字だけを抽出
-        # ※HTML構造は将来変更される可能性があります
-        price_matches = re.findall(r'class="Product__priceValue[^>]*>([\d,]+)', html)
-        
-        prices = []
-        for p in price_matches:
-            clean_p = p.replace(',', '')
-            if clean_p.isdigit():
-                prices.append(int(clean_p))
+        items = []
+        for item in product_items:
+            try:
+                title_tag = item.find("a", class_="Product__titleLink")
+                price_tag = item.find("span", class_="Product__priceValue")
+                img_tag = item.find("img")
+                
+                if title_tag and price_tag:
+                    title = title_tag.text.strip()
+                    item_url = title_tag.get("href", "#")
+                    price_str = price_tag.text.strip().replace(',', '').replace('円', '')
+                    img_url = img_tag.get("src", "") if img_tag else ""
+                    
+                    if price_str.isdigit():
+                        items.append({
+                            "title": title,
+                            "url": item_url,
+                            "price": f"{int(price_str):,}",
+                            "raw_price": int(price_str),
+                            "image": img_url
+                        })
+            except Exception as e:
+                continue
+            
+            # ▼ 変更2: 以下の3行（5件でストップする処理）をまるごと削除します！
+            # if len(items) >= 5:
+            #     break
 
-        if not prices:
-            logger.warning(f"⚠️ 落札データが見つかりませんでした: {keyword}")
+        if not items:
             return None
 
-        # 極端な外れ値や即決価格のブレを考慮し、取得できた中から上位のデータを計算
-        valid_prices = sorted(prices, reverse=True)
-        
-        max_price = max(valid_prices)
-        avg_price = sum(valid_prices) // len(valid_prices)
+        raw_prices = [i["raw_price"] for i in items]
+        max_price = max(raw_prices)
+        avg_price = sum(raw_prices) // len(raw_prices)
         
         return {
             "max_price": f"{max_price:,}",
             "avg_price": f"{avg_price:,}",
-            "sample_count": len(valid_prices)
+            "sample_count": len(items),
+            "items": items 
         }
-        
     except Exception as e:
         logger.error(f"❌ ヤフオクスクレイピングエラー: {e}")
         return None
-
 
 # ==============================================================================================
 # AIせどり鑑定士 (ヤフオク相場 ➔ AI判定) API

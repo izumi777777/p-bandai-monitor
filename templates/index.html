@@ -23,7 +23,7 @@
     
     <div id="login-overlay" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
       <div class="glass rounded-2xl p-8 w-full max-w-sm text-center shadow-2xl">
-        <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">PB Monitor Pro v2.0.1-beta</h1>
+        <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">PB Monitor Pro v2.0.8-beta</h1>
         <button id="login-btn" class="w-full bg-white text-slate-900 font-bold py-4 rounded-xl flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg hover:bg-slate-100">
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google">Continue with Google 
         </button>
@@ -34,7 +34,7 @@
     <header class="max-w-4xl mx-auto flex justify-between items-center mb-8">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-pulse"></div>
-        <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro v2.0.7-beta</h1>
+        <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro v2.0.8-beta</h1>
       </div>
       <button id="logout-btn" class="text-slate-500 hover:text-red-400 text-xs transition-colors hidden px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/50">
         <i class="fas fa-sign-out-alt mr-2"></i>Logout
@@ -58,7 +58,7 @@
                 <div>
                     <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">New Monitor</h2>
                     <p class="text-[10px] text-slate-400 leading-relaxed">
-                        監視したい商品のURLを入力するか、AIに今熱いトレンド商品を提案させます。
+                        監視したい商品のURLを入力するか、AIに今熱いトレンド商品を提案させます。※ AI教育中のため精度に大きなブレがあります、ご了承ください。
                     </p>
                 </div>
                 
@@ -260,7 +260,7 @@
         tabMonitor.onclick = () => switchTab('monitor');
         tabScout.onclick = () => switchTab('scout');
 
-        // --- Scout Appraise Logic ---
+        // --- Scout Appraise Logic (テーブル＆画像対応版) ---
         scoutBtn.onclick = async () => {
             const keyword = scoutInput.value.trim();
             if (!keyword) return alert("検索キーワードを入力してください");
@@ -289,9 +289,34 @@
                     rankColor = "text-red-400 bg-red-500/20 border-red-500/30"; // 薄利・リスクは赤
                 }
 
-                // 結果の描画（イエロー基調）
+                // 取得した個別アイテムをテーブルの行に変換
+                let itemsHtml = "";
+                if (data.market_data.items && data.market_data.items.length > 0) {
+                    itemsHtml = data.market_data.items.map(item => `
+                        <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                            <td class="py-3 pl-2">
+                                <img src="${item.image}" class="w-10 h-10 object-cover rounded shadow-sm border border-white/10" alt="商品画像">
+                            </td>
+                            <td class="py-3 px-2">
+                                <div class="text-[10px] text-white font-medium line-clamp-2 leading-tight">${item.title}</div>
+                            </td>
+                            <td class="py-3 px-2 text-right">
+                                <span class="text-[10px] font-mono text-white font-bold">${item.price}円</span>
+                            </td>
+                            <td class="py-3 pr-2 text-right">
+                                <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="text-yellow-500 hover:text-yellow-400 text-[10px] inline-flex items-center justify-center p-2 hover:bg-yellow-500/10 rounded-full transition-colors">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    `).join("");
+                } else {
+                     itemsHtml = `<tr><td colspan="4" class="text-center py-4 text-xs text-slate-500">詳細データが見つかりませんでした</td></tr>`;
+                }
+
+                // 結果の描画（サマリー + テーブル + AIアドバイス）
                 scoutResult.innerHTML = `
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div class="bg-slate-950 p-4 rounded-lg border border-white/5 text-center">
                             <p class="text-[10px] text-slate-400 mb-1">ヤフオク平均落札額</p>
                             <p class="text-xl font-mono text-white">${data.market_data.avg_price} <span class="text-xs">円</span></p>
@@ -308,6 +333,23 @@
                             </span>
                         </div>
                     </div>
+
+                    <div class="mb-6 max-h-[400px] overflow-y-auto rounded-xl border border-white/5 bg-slate-950/50 custom-scrollbar">
+    <table class="w-full text-left border-collapse relative">
+        <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0 z-20 shadow-md">
+            <tr>
+                <th class="py-2 pl-2 w-12">画像</th>
+                <th class="py-2 px-2">商品名</th>
+                <th class="py-2 px-2 text-right w-24">落札価格</th>
+                <th class="py-2 pr-2 text-right w-12">URL</th>
+            </tr>
+        </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+
                     <div class="bg-yellow-900/10 p-4 rounded-lg border border-yellow-500/30">
                         <h3 class="text-[11px] font-bold text-yellow-500 mb-2"><i class="fas fa-comment-dots mr-1"></i> AI 鑑定アドバイス</h3>
                         <p class="text-xs text-slate-300 leading-relaxed">${data.appraisal.ai_advice}</p>
@@ -317,7 +359,7 @@
 
             } catch (err) {
                 console.error("Scout Error:", err);
-                scoutResult.innerHTML = `<p class="text-xs text-red-400 text-center"><i class="fas fa-exclamation-triangle mr-1"></i> 鑑定エラー: ${err.message}</p>`;
+                scoutResult.innerHTML = `<p class="text-xs text-red-400 text-center py-4"><i class="fas fa-exclamation-triangle mr-1"></i> 鑑定エラー: ${err.message}</p>`;
                 scoutResult.classList.remove("hidden");
             } finally {
                 scoutBtn.disabled = false;
@@ -349,13 +391,16 @@
             }
         });
 
-        // --- AI おすすめ商品取得・一括登録ロジック ---
+        // --- AI おすすめ商品取得・一括登録ロジック (ローディング対応版) ---
         aiSuggestBtn.onclick = async () => {
             const originalBtnHtml = aiSuggestBtn.innerHTML;
+            aiSuggestBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分析中...';
+            aiSuggestBtn.disabled = true;
+            aiSuggestBtn.classList.add("opacity-50", "cursor-not-allowed");
+
             aiRecsContainer.classList.remove("hidden");
             aiRecsList.innerHTML = `<p class="text-[10px] text-slate-400 text-center py-2">AIがトレンドを分析しています... (約10〜20秒)</p>`;
             aiRecsLoader.classList.remove("hidden");
-            aiSuggestBtn.disabled = true;
 
             try {
                 const idToken = await currentUser.getIdToken();
@@ -373,7 +418,7 @@
                     <div class="bg-slate-900/50 p-3 rounded-lg border border-white/5 flex flex-col sm:flex-row justify-between gap-2 items-start sm:items-center">
                         <div class="flex-1">
                             <h4 class="text-xs font-bold text-white mb-1">
-                                <a href="${item.url}" target="_blank" class="hover:text-blue-400 hover:underline"><i class="fas fa-link text-[10px] mr-1"></i>${item.title}</a>
+                                <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="hover:text-blue-400 hover:underline"><i class="fas fa-link text-[10px] mr-1"></i>${item.title}</a>
                             </h4>
                             <p class="text-[10px] text-emerald-400/80">${item.reason}</p>
                         </div>
@@ -434,7 +479,9 @@
                 aiRecsList.innerHTML = `<p class="text-[10px] text-red-400 py-2">エラー: ${err.message}</p>`;
             } finally {
                 aiRecsLoader.classList.add("hidden");
+                aiSuggestBtn.innerHTML = originalBtnHtml;
                 aiSuggestBtn.disabled = false;
+                aiSuggestBtn.classList.remove("opacity-50", "cursor-not-allowed");
             }
         };
 
