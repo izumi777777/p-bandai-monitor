@@ -9,7 +9,7 @@ import io
 
 from datetime import datetime
 from functools import wraps
-from flask import Flask, request, jsonify, render_template, abort
+from flask import Flask, request, jsonify, render_template, abort, redirect, url_for
 # LINE MessagesAPI
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
@@ -300,8 +300,13 @@ def api_watchlist_csv():
             continue
 
         # プレバンURLか簡易チェック
-        if "p-bandai.jp" not in url:
-            results["errors"].append(f"{index+1}行目: プレミアムバンダイのURLではありません")
+        # if "p-bandai.jp" not in url:
+        #     results["errors"].append(f"{index+1}行目: プレミアムバンダイのURLではありません")
+        #     continue
+        
+        # プレバンURLか簡易チェック（テスト用URLも許可）
+        if "p-bandai.jp" not in url and "/test-item" not in url:
+            results["errors"].append(f"{index+1}行目: 対象外のURLです")
             continue
 
         # スクレイピング実行 (AIは使わず高速に)
@@ -482,6 +487,60 @@ def check_watchlist_job():
 {url}"""
                 send_line_notification(line_user_id, msg)
 
+
+# ========================================================
+# テスト用ダミーページ (E2Eテスト用)
+# ========================================================
+# メモリ上で擬似在庫状態を管理
+MOCK_ITEM_IN_STOCK = False
+
+@app.route("/test-item")
+def test_item_page():
+    global MOCK_ITEM_IN_STOCK
+    stock_mark = "○" if MOCK_ITEM_IN_STOCK else "×"
+    status_text = "🟢 在庫あり" if MOCK_ITEM_IN_STOCK else "🔴 在庫なし"
+    
+    # scrape_premium_bandai() の正規表現に引っかかるように変数を配置
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <title>【テスト用】擬似プレバン商品 | プレミアムバンダイ</title>
+        <meta property="og:image" content="https://dummyimage.com/400x400/2563eb/ffffff&text=TEST+ITEM">
+        <style>
+            body {{ font-family: sans-serif; text-align: center; padding: 50px; background: #f3f4f6; }}
+            .card {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }}
+            button {{ background: #2563eb; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: 0.2s; }}
+            button:hover {{ background: #1d4ed8; transform: translateY(-2px); }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2 style="color: #333;">【テスト用】擬似プレバン商品</h2>
+            <p style="font-size: 32px; font-weight: bold; margin: 20px 0;">{status_text}</p>
+            <form action="/test-item/toggle" method="POST">
+                <button type="submit">在庫状態を切り替える</button>
+            </form>
+            <p style="margin-top:20px; font-size: 12px; color: #666;">
+                このページのURLを監視リストに登録して、システム全体の動作テストを行えます。
+            </p>
+        </div>
+        
+        <script>
+            var data = {{ price: '9999' }};
+            var orderstock_list = {{"item_id_123":"{stock_mark}"}};
+        </script>
+    </body>
+    </html>
+    """
+    return html
+
+@app.route("/test-item/toggle", methods=["POST"])
+def toggle_test_item():
+    global MOCK_ITEM_IN_STOCK
+    MOCK_ITEM_IN_STOCK = not MOCK_ITEM_IN_STOCK
+    return redirect(url_for('test_item_page'))
 
 # ==========================
 # 起動

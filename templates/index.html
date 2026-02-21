@@ -189,9 +189,18 @@
         });
 
         // --- Inspect Logic ---
+        //inspectBtn.onclick = async () => {
+            //const url = urlInput.value.trim();
+            //if (!url.includes("p-bandai.jp/item/")) return alert("プレバン商品URLを入力してください");
+
+            //inspectBtn.disabled = true;
+        // --- テスト用 ---
         inspectBtn.onclick = async () => {
             const url = urlInput.value.trim();
-            if (!url.includes("p-bandai.jp/item/")) return alert("プレバン商品URLを入力してください");
+            // プレバンURL、またはテスト用URL（/test-item）を含んでいれば許可する
+            if (!url.includes("p-bandai.jp/item/") && !url.includes("/test-item")) {
+                return alert("プレバン商品URL、またはテスト用URLを入力してください");
+            }
 
             inspectBtn.disabled = true;
             inputLoader.classList.remove("hidden");
