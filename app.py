@@ -436,39 +436,53 @@ def handle_message(event):
         app.logger.error(f"Error sending reply: {e}")
 
 # ========================================================================================
-# 監視ジョブ本体
+# 監視ジョブ本体 (デバッグログ強化版)
 # ========================================================================================
 def check_watchlist_job():
     logger.info("⏰ 在庫監視ジョブ開始")
 
     users_ref = db.collection("artifacts").document(APP_ID).collection("users")
-    for user_doc in users_ref.stream():
-        uid = user_doc.id
+    # stream() ではなく list_documents() を使うと、幽霊ドキュメントも取得できる
+    user_refs = list(users_ref.list_documents())
+    logger.info(f"👤 登録ユーザー数: {len(user_refs)}人")
+
+    for user_ref in user_refs:
+        uid = user_ref.id
 
         # LINE設定取得
         line_ref = users_ref.document(uid).collection("settings").document("line").get()
         if not line_ref.exists:
+            logger.info(f"⏭️ [User:{uid}] LINE ID未設定のためスキップ")
             continue
 
         line_user_id = line_ref.to_dict().get("lineUserId")
         if not line_user_id:
+            logger.info(f"⏭️ [User:{uid}] LINE IDが空のためスキップ")
             continue
 
         watchlist_ref = users_ref.document(uid).collection("watchlist")
-        for item_doc in watchlist_ref.stream():
+        items = list(watchlist_ref.stream())
+        logger.info(f"📋 [User:{uid}] 監視対象アイテム数: {len(items)}件")
+
+        for item_doc in items:
             item = item_doc.to_dict()
             url = item.get("url")
+            title = item.get("title", "名称不明")
 
             scraped = scrape_premium_bandai(url)
             if not scraped:
+                logger.warning(f"⚠️ [Item:{title}] スクレイピング失敗 (アクセス不能など)")
                 continue
 
             prev_status = item.get("inStock", False)
             current_status = scraped["inStock"]
+            
+            # ここで現在の判定状況をログ出力！
+            logger.info(f"🔍 [Item:{title}] DB前回:{prev_status} ➔ サイト現在:{current_status}")
 
             # 状態変化チェック
             if prev_status != current_status:
-                logger.info(f"🔔 在庫変化検知: {item.get('title')}")
+                logger.info(f"🔔 在庫変化検知: {title}")
 
                 # Firestore 更新
                 item_doc.reference.update(
@@ -482,7 +496,7 @@ def check_watchlist_job():
 
                 # LINE 通知
                 msg = f"""📦 在庫変動通知
-{item.get("title")}
+{title}
 状態: {scraped["statusText"]}
 {url}"""
                 send_line_notification(line_user_id, msg)
@@ -555,7 +569,7 @@ if __name__ == "__main__":
     scheduler.add_job(
         check_watchlist_job,
         trigger="interval",
-        minutes=10,
+        minutes=1,
         id="watchlist_checker",
         replace_existing=True,
     )
