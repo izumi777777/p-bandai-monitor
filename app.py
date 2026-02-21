@@ -569,7 +569,7 @@ if __name__ == "__main__":
     scheduler.add_job(
         check_watchlist_job,
         trigger="interval",
-        minutes=1,
+        minutes=10,
         id="watchlist_checker",
         replace_existing=True,
     )
