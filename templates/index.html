@@ -17,6 +17,11 @@
         .btn-ghost:hover { background:rgba(255,255,255,0.1); }
         .loader { border-top-color: #3b82f6; animation: spinner 0.6s linear infinite; }
         @keyframes spinner { to { transform: rotate(360deg); } }
+        /* スクロールバーのカスタマイズ */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
     </style>
   </head>
   <body class="min-h-screen p-4 md:p-6 pb-20">
@@ -175,7 +180,7 @@
                   </button>
               </div>
 
-              <div id="scout-result" class="hidden mt-6 bg-slate-900/50 border border-yellow-500/20 rounded-xl p-5 shadow-inner">
+              <div id="scout-result" class="hidden mt-6 bg-slate-900/50 border border-yellow-500/20 rounded-xl p-5 shadow-inner flex flex-col">
                   </div>
           </section>
       </div>
@@ -260,11 +265,12 @@
         tabMonitor.onclick = () => switchTab('monitor');
         tabScout.onclick = () => switchTab('scout');
 
-        // --- Scout Appraise Logic (テーブル＆画像対応版) ---
+        // --- Scout Appraise Logic ---
         scoutBtn.onclick = async () => {
             const keyword = scoutInput.value.trim();
             if (!keyword) return alert("検索キーワードを入力してください");
 
+            const originalBtnHtml = scoutBtn.innerHTML;
             scoutBtn.disabled = true;
             scoutLoader.classList.remove("hidden");
             scoutResult.classList.add("hidden");
@@ -282,11 +288,11 @@
                 if (!res.ok) throw new Error(data.error);
 
                 // 利益期待度（A, B, C）に応じて色を変えるロジック
-                let rankColor = "text-yellow-400 bg-yellow-500/20 border-yellow-500/30"; // デフォルト
+                let rankColor = "text-yellow-400 bg-yellow-500/20 border-yellow-500/30";
                 if (data.appraisal.profitability.includes("A")) {
-                    rankColor = "text-emerald-400 bg-emerald-500/20 border-emerald-500/30"; // 高利益は緑
+                    rankColor = "text-emerald-400 bg-emerald-500/20 border-emerald-500/30";
                 } else if (data.appraisal.profitability.includes("C")) {
-                    rankColor = "text-red-400 bg-red-500/20 border-red-500/30"; // 薄利・リスクは赤
+                    rankColor = "text-red-400 bg-red-500/20 border-red-500/30";
                 }
 
                 // 取得した個別アイテムをテーブルの行に変換
@@ -314,7 +320,7 @@
                      itemsHtml = `<tr><td colspan="4" class="text-center py-4 text-xs text-slate-500">詳細データが見つかりませんでした</td></tr>`;
                 }
 
-                // 結果の描画（サマリー + テーブル + AIアドバイス）
+                // 結果の描画
                 scoutResult.innerHTML = `
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div class="bg-slate-950 p-4 rounded-lg border border-white/5 text-center">
@@ -335,15 +341,15 @@
                     </div>
 
                     <div class="mb-6 max-h-[400px] overflow-y-auto rounded-xl border border-white/5 bg-slate-950/50 custom-scrollbar">
-    <table class="w-full text-left border-collapse relative">
-        <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0 z-20 shadow-md">
-            <tr>
-                <th class="py-2 pl-2 w-12">画像</th>
-                <th class="py-2 px-2">商品名</th>
-                <th class="py-2 px-2 text-right w-24">落札価格</th>
-                <th class="py-2 pr-2 text-right w-12">URL</th>
-            </tr>
-        </thead>
+                        <table class="w-full text-left border-collapse relative">
+                            <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0 z-20 shadow-md">
+                                <tr>
+                                    <th class="py-2 pl-2 w-12">画像</th>
+                                    <th class="py-2 px-2">商品名</th>
+                                    <th class="py-2 px-2 text-right w-24">落札価格</th>
+                                    <th class="py-2 pr-2 text-right w-12">URL</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 ${itemsHtml}
                             </tbody>
@@ -354,8 +360,104 @@
                         <h3 class="text-[11px] font-bold text-yellow-500 mb-2"><i class="fas fa-comment-dots mr-1"></i> AI 鑑定アドバイス</h3>
                         <p class="text-xs text-slate-300 leading-relaxed">${data.appraisal.ai_advice}</p>
                     </div>
+
+                    <div class="mt-4 bg-slate-900/80 p-4 rounded-lg border border-white/5">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-[10px] font-bold text-slate-400"><i class="fas fa-question-circle mr-1"></i> 鑑定結果についてAIに質問する</h4>
+                            <span class="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">残り <span id="followup-left">2</span> 回</span>
+                        </div>
+                        <div id="followup-history" class="space-y-3 mb-3 text-[11px] max-h-40 overflow-y-auto custom-scrollbar flex flex-col">
+                            </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="followup-input" placeholder="例：箱なしの場合はいくらになりますか？" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50 text-white placeholder:text-slate-600">
+                            <button id="followup-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                                <i class="fas fa-paper-plane"></i> 送信
+                            </button>
+                        </div>
+                    </div>
                 `;
                 scoutResult.classList.remove("hidden");
+
+                // 追加質問のロジック設定
+                let followUpCount = 0;
+                const maxFollowUps = 2; 
+                const currentThreadId = data.thread_id; 
+
+                const followupInput = document.getElementById("followup-input");
+                const followupBtn = document.getElementById("followup-btn");
+                const followupHistory = document.getElementById("followup-history");
+                const followupLeftSpan = document.getElementById("followup-left");
+
+                if(followupInput && followupBtn) {
+                    followupInput.addEventListener("keypress", function(event) {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            followupBtn.click();
+                        }
+                    });
+
+                    followupBtn.onclick = async () => {
+                        const msg = followupInput.value.trim();
+                        if(!msg) return;
+                        if(followUpCount >= maxFollowUps) return;
+
+                        followupBtn.disabled = true;
+                        followupInput.disabled = true;
+                        const originalBtnHtml = followupBtn.innerHTML;
+                        followupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                        followupHistory.innerHTML += `
+                            <div class="self-end bg-blue-600/20 border border-blue-500/20 text-blue-100 px-3 py-2 rounded-lg rounded-br-none max-w-[85%]">
+                                ${msg}
+                            </div>
+                        `;
+                        followupInput.value = "";
+                        followupHistory.scrollTop = followupHistory.scrollHeight;
+
+                        try {
+                            const idToken = await currentUser.getIdToken();
+                            const res = await fetch('/api/scout/followup', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                                body: JSON.stringify({ thread_id: currentThreadId, message: msg })
+                            });
+
+                            const followData = await res.json();
+                            if(!res.ok) throw new Error(followData.error);
+
+                            followUpCount++;
+                            followupLeftSpan.innerText = maxFollowUps - followUpCount;
+
+                            followupHistory.innerHTML += `
+                                <div class="self-start bg-slate-800 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg rounded-bl-none max-w-[90%] leading-relaxed">
+                                    <i class="fas fa-robot text-yellow-500 mr-1 text-[10px]"></i> ${followData.answer.replace(/\n/g, '<br>')}
+                                </div>
+                            `;
+
+                            if(followUpCount >= maxFollowUps) {
+                                followupInput.placeholder = "質問回数の上限（2回）に達しました。";
+                                followupInput.disabled = true;
+                                followupBtn.disabled = true;
+                                followupLeftSpan.parentElement.classList.replace("bg-blue-500/20", "bg-red-500/20");
+                                followupLeftSpan.parentElement.classList.replace("text-blue-400", "text-red-400");
+                                followupLeftSpan.parentElement.classList.replace("border-blue-500/30", "border-red-500/30");
+                            } else {
+                                followupInput.disabled = false;
+                                followupBtn.disabled = false;
+                                followupInput.focus();
+                            }
+
+                        } catch (err) {
+                            console.error(err);
+                            followupHistory.innerHTML += `<div class="text-red-400 text-center py-2 text-[10px]"><i class="fas fa-exclamation-triangle"></i> エラー: ${err.message}</div>`;
+                            followupInput.disabled = false;
+                            followupBtn.disabled = false;
+                        } finally {
+                            followupBtn.innerHTML = originalBtnHtml;
+                            followupHistory.scrollTop = followupHistory.scrollHeight;
+                        }
+                    };
+                }
 
             } catch (err) {
                 console.error("Scout Error:", err);

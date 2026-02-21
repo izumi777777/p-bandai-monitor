@@ -464,7 +464,8 @@ def api_scout_item():
                         return jsonify({
                             "keyword": keyword,
                             "market_data": market_data,
-                            "appraisal": appraisal
+                            "appraisal": appraisal,
+                            "thread_id": thread.id
                         })
                 except Exception as parse_err:
                     logger.error(f"JSONパースエラー: {parse_err} \nAIの生テキスト: {text}")
@@ -474,6 +475,48 @@ def api_scout_item():
 
     except Exception as e:
         logger.error(f"AI鑑定エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+
+# ========================================================
+# AIせどり鑑定士 (追加質問 API)
+# ========================================================
+@app.route("/api/scout/followup", methods=["POST"])
+@login_required
+def api_scout_followup():
+    thread_id = request.json.get("thread_id")
+    user_message = request.json.get("message")
+
+    if not thread_id or not user_message:
+        return jsonify({"error": "必要な情報が不足しています"}), 400
+
+    try:
+        # AIが再びJSONで返してこないように、裏でこっそり指示を追加
+        prompt = f"{user_message}\n(※この追加質問にはJSON形式ではなく、通常の日本語テキストで簡潔に回答してください)"
+
+        # 既存のスレッド(文脈を記憶している)にメッセージを追加
+        project_client.agents.messages.create(
+            thread_id=thread_id, role="user", content=prompt
+        )
+        
+        project_client.agents.runs.create_and_process(
+            thread_id=thread_id, agent_id=agent.id
+        )
+        
+        messages = project_client.agents.messages.list(
+            thread_id=thread_id, order=ListSortOrder.DESCENDING
+        )
+
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                # AIからの最新のテキスト回答をそのまま返す
+                text = m.text_messages[0].text.value
+                return jsonify({"answer": text})
+
+        return jsonify({"error": "AIからの応答がありませんでした"}), 500
+
+    except Exception as e:
+        logger.error(f"AI追加質問エラー: {e}")
         return jsonify({"error": str(e)}), 500
     
 
