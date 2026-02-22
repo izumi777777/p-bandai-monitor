@@ -23,3 +23,6 @@ python-dotenv
 
 # Gunicorn (本番環境での実行用 - 推奨)
 gunicorn
+
+#ヤフオク
+beautifulsoup4
