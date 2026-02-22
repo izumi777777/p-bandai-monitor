@@ -18,7 +18,7 @@
         .loader { border-top-color: #3b82f6; animation: spinner 0.6s linear infinite; }
         @keyframes spinner { to { transform: rotate(360deg); } }
         /* スクロールバーのカスタマイズ */
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
@@ -28,7 +28,7 @@
     
     <div id="login-overlay" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
       <div class="glass rounded-2xl p-8 w-full max-w-sm text-center shadow-2xl">
-        <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">PB Monitor Pro v2.0.8-beta</h1>
+        <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">BidMonitor Pro v2.1.0-beta</h1>
         <button id="login-btn" class="w-full bg-white text-slate-900 font-bold py-4 rounded-xl flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg hover:bg-slate-100">
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google">Continue with Google 
         </button>
@@ -36,132 +36,56 @@
       </div>
     </div>
 
-    <header class="max-w-4xl mx-auto flex justify-between items-center mb-8">
+    <header class="max-w-4xl mx-auto flex justify-between items-center mb-6">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-pulse"></div>
-        <h1 class="text-xl font-bold tracking-tight text-white italic">PB Monitor Pro v2.0.8-beta</h1>
+        <h1 class="text-xl font-bold tracking-tight text-white italic">BidMonitor Pro v2.1.0-beta</h1>
       </div>
       <button id="logout-btn" class="text-slate-500 hover:text-red-400 text-xs transition-colors hidden px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/50">
         <i class="fas fa-sign-out-alt mr-2"></i>Logout
       </button>
     </header>
 
-    <div class="max-w-4xl mx-auto flex space-x-2 border-b border-white/10 mb-6">
-        <button id="tab-monitor" class="px-5 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-400 transition-colors">
-            <i class="fas fa-box-open mr-1"></i> プレバン監視
-        </button>
-        <button id="tab-scout" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors">
+    <div class="max-w-4xl mx-auto mb-6">
+      <div class="glass rounded-xl p-4 border border-blue-500/20 bg-blue-900/10 flex gap-3 items-start relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+        <i class="fas fa-bullhorn text-blue-400 mt-0.5"></i>
+        <div class="flex-1">
+            <div class="flex items-center justify-between mb-1">
+                <h3 class="text-[11px] font-bold text-blue-400">システムアップデート情報</h3>
+                <span class="text-[9px] text-slate-500">2026/02/22</span>
+            </div>
+            <ul class="text-[10px] text-slate-300 space-y-1 list-disc list-inside">
+                <li><span class="text-emerald-400 font-bold">New!</span> ヤフオク監視機能を新設し、プレバンとタブを分離しました。</li>
+                <li>設定画面を独立したタブに移動しました。</li>
+                <li>近日中：バックグラウンドでの自動スクレイピング＆LINE通知機能を実装予定です。</li>
+            </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto flex space-x-2 border-b border-white/10 mb-6 overflow-x-auto custom-scrollbar pb-1">
+        <button id="tab-scout" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
             <i class="fas fa-search-dollar mr-1"></i> AI相場鑑定 <span class="ml-1 text-[8px] bg-yellow-600/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30">PRO</span>
+        </button>
+        <button id="tab-active" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+            <i class="fas fa-satellite-dish mr-1"></i> 開催中追跡
+        </button>
+        <button id="tab-yahoo" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+            <i class="fas fa-gavel mr-1"></i> ヤフオク監視
+        </button>
+        <button id="tab-monitor" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap opacity-50 hover:opacity-100">
+            <i class="fas fa-box-open mr-1"></i> プレバン(旧)
+        </button>
+        <div class="flex-1"></div>
+        <button id="tab-settings" class="px-4 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+            <i class="fas fa-cog"></i>
         </button>
     </div>
 
     <main class="max-w-4xl mx-auto space-y-8">
-      
-      <div id="view-monitor" class="space-y-8 animate-in fade-in duration-300">
-          <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
-                <div>
-                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">New Monitor</h2>
-                    <p class="text-[10px] text-slate-400 leading-relaxed">
-                        監視したい商品のURLを入力するか、AIに今熱いトレンド商品を提案させます。※ AI教育中のため精度に大きなブレがあります、ご了承ください。
-                    </p>
-                </div>
-                
-                <div class="flex flex-col items-start sm:items-end shrink-0 w-full sm:w-auto">
-                    <button id="ai-suggest-btn" class="w-full sm:w-auto text-[11px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-500/30 px-4 py-2 rounded-full hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-lg shadow-emerald-900/10">
-                        <i class="fas fa-magic"></i> AIにトレンドを提案させる
-                    </button>
-                    <span class="text-[8px] text-emerald-500/70 mt-1 mr-2 hidden sm:block">
-                        ※最大5件まで一括登録可能
-                    </span>
-                </div>
-            </div>
 
-            <div id="ai-recs-container" class="hidden mb-4 p-4 bg-emerald-900/10 border border-emerald-500/20 rounded-xl">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-xs font-bold text-emerald-400"><i class="fas fa-sparkles mr-1"></i>AIが選んだ注目商品</h3>
-                    <div id="ai-recs-loader" class="hidden loader ease-linear rounded-full border-2 border-t-2 border-emerald-400 h-3 w-3"></div>
-                </div>
-                <div id="ai-recs-list" class="flex flex-col gap-2"></div>
-            </div>
-
-            <div class="flex flex-col md:flex-row gap-3">
-              <div class="flex-1 relative">
-                <input id="url-input" type="text" placeholder="https://p-bandai.jp/item/item-..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600">
-                <div id="input-loader" class="absolute right-4 top-1/2 -translate-y-1/2 hidden">
-                  <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5"></div>
-                </div>
-              </div>
-              <button id="inspect-btn" class="btn-primary text-white px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                <i class="fas fa-search"></i>調査する
-              </button>
-            </div>
-
-            <div class="mt-4 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div class="text-[10px] text-slate-500 flex flex-col sm:flex-row sm:items-center gap-1 w-full sm:w-auto">
-                    <span><i class="fas fa-info-circle mr-1"></i>URLの一括登録が可能です。</span>
-                    <span class="text-slate-600">(Max: 5件)</span>
-                </div>
-                
-                <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
-                    <button id="download-template-btn" class="text-[10px] text-slate-500 hover:text-white underline decoration-slate-700 underline-offset-2 transition-colors flex items-center gap-1">
-                        <i class="fas fa-download"></i>雛形をDL
-                    </button>
-                    
-                    <input type="file" id="csv-input" accept=".csv" class="hidden">
-                    <button id="csv-upload-btn" class="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-dashed border-blue-500/30">
-                        <i class="fas fa-file-csv"></i> CSVインポート
-                    </button>
-                </div>
-            </div>
-          </section>
-
-          <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
-            <div class="glass rounded-3xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl border border-white/10">
-              <div id="preview-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
-              <div class="p-4 bg-slate-900/50 border-t border-white/5 flex gap-3">
-                <button id="preview-cancel" class="flex-1 py-3 rounded-xl text-sm font-bold text-slate-400 btn-ghost">キャンセル</button>
-                <button id="confirm-add-btn" class="flex-[2] py-3 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">この商品を監視する</button>
-              </div>
-            </div>
-          </div>
-
-          <section class="space-y-4">
-            <div class="flex items-center justify-between px-2">
-              <div class="flex items-center gap-4">
-                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Watchlist</h2>
-                <span id="item-count" class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-mono">0</span>
-              </div>
-            </div>
-            <div id="watchlist" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-          </section>
-
-          <details id="line-setup" class="glass rounded-xl overflow-hidden border border-white/5">
-            <summary class="p-4 text-xs font-bold text-slate-400 cursor-pointer hover:bg-white/5 flex items-center justify-between">
-              <span>
-                <i class="fab fa-line mr-2 text-emerald-500"></i>LINE通知設定 (クリックで開く)
-              </span>
-              <i class="fas fa-chevron-down text-[10px]"></i>
-            </summary>
-            <div class="p-5 border-t border-white/5 bg-slate-900/30">
-              <p class="text-[11px] text-slate-500 mb-4">在庫変動時に通知を受け取るには、LINE USER IDを登録してください。
-                <br>
-                <span class="text-blue-400">※LINE Developers等のプロファイルから取得したID（Uから始まる文字列）を入力します。</span>
-              </p>
-              <div class="flex flex-col gap-3">
-                <div class="flex gap-2">
-                  <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-emerald-500/50">
-                  <button id="save-line-btn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all">保存</button>
-                </div>
-                <button id="test-line-btn" class="text-[10px] text-slate-400 hover:text-white transition-colors flex items-center gap-1 justify-center py-2 border border-dashed border-slate-700 rounded-lg">
-                  <i class="fas fa-paper-plane"></i>保存したIDにテスト通知を送る
-                </button>
-              </div>
-            </div>
-          </details>
-      </div>
-
-      <div id="view-scout" class="hidden space-y-8 animate-in fade-in duration-300">
+      <div id="view-scout" class="space-y-8 animate-in fade-in duration-300">
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
               <div class="absolute -top-10 -right-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
@@ -185,12 +109,135 @@
           </section>
       </div>
 
+      <div id="view-active" class="hidden space-y-8 animate-in fade-in duration-300">
+          <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
+              <div class="absolute -top-10 -right-10 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+              <h2 class="text-xs font-bold text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-satellite-dish mr-1"></i> 開催中オークション追跡</h2>
+              <p class="text-[11px] text-slate-400 mb-6">現在ヤフオクに出品されている商品の現在価格・即決価格・残り時間をリアルタイムに検索します。気になる商品はウォッチリストに追加して一元管理できます。</p>
+              
+              <div class="flex flex-col md:flex-row gap-3 relative z-10">
+                  <div class="flex-1 relative">
+                      <input id="active-input" type="text" placeholder="検索キーワードを入力" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-purple-500/50 transition-colors placeholder:text-slate-600">
+                  </div>
+                  <button id="active-btn" class="bg-purple-600 hover:bg-purple-500 text-white px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(147,51,234,0.2)]">
+                      <i class="fas fa-search"></i> 現在の出品を探す
+                  </button>
+              </div>
+
+              <div id="active-result" class="hidden mt-6 bg-slate-900/50 border border-purple-500/20 rounded-xl p-5 shadow-inner flex flex-col">
+                  </div>
+          </section>
+      </div>
+
+      <div id="view-yahoo" class="hidden space-y-8 animate-in fade-in duration-300">
+          <section class="space-y-4">
+            <div class="flex items-center justify-between px-2">
+              <div class="flex items-center gap-4">
+                <h2 class="text-xs font-bold text-emerald-500 uppercase tracking-widest"><i class="fas fa-gavel mr-1"></i> ヤフオク 監視リスト</h2>
+                <span id="item-count-yahoo" class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-mono">0</span>
+              </div>
+            </div>
+            <div id="watchlist-yahoo" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+          </section>
+      </div>
+
+      <div id="view-monitor" class="hidden space-y-8 animate-in fade-in duration-300 opacity-80">
+          <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
+                <div>
+                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">プレバン New Monitor</h2>
+                    <p class="text-[10px] text-slate-400 leading-relaxed">監視したい商品のURLを入力するか、AIに今熱いトレンド商品を提案させます。</p>
+                </div>
+                <div class="flex flex-col items-start sm:items-end shrink-0 w-full sm:w-auto">
+                    <button id="ai-suggest-btn" class="w-full sm:w-auto text-[11px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-500/30 px-4 py-2 rounded-full hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1">
+                        <i class="fas fa-magic"></i> AIにトレンドを提案させる
+                    </button>
+                </div>
+            </div>
+
+            <div id="ai-recs-container" class="hidden mb-4 p-4 bg-emerald-900/10 border border-emerald-500/20 rounded-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xs font-bold text-emerald-400"><i class="fas fa-sparkles mr-1"></i>AIが選んだ注目商品</h3>
+                    <div id="ai-recs-loader" class="hidden loader ease-linear rounded-full border-2 border-t-2 border-emerald-400 h-3 w-3"></div>
+                </div>
+                <div id="ai-recs-list" class="flex flex-col gap-2"></div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-3">
+              <div class="flex-1 relative">
+                <input id="url-input" type="text" placeholder="https://p-bandai.jp/item/item-..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600">
+                <div id="input-loader" class="absolute right-4 top-1/2 -translate-y-1/2 hidden">
+                  <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5"></div>
+                </div>
+              </div>
+              <button id="inspect-btn" class="btn-primary text-white px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                <i class="fas fa-search"></i>調査
+              </button>
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                    <input type="file" id="csv-input" accept=".csv" class="hidden">
+                    <button id="csv-upload-btn" class="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-dashed border-blue-500/30">
+                        <i class="fas fa-file-csv"></i> CSVインポート
+                    </button>
+                </div>
+            </div>
+          </section>
+
+          <section class="space-y-4">
+            <div class="flex items-center justify-between px-2">
+              <div class="flex items-center gap-4">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest"><i class="fas fa-box-open mr-1"></i> プレバン Watchlist</h2>
+                <span id="item-count" class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-mono">0</span>
+              </div>
+            </div>
+            <div id="watchlist" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+          </section>
+      </div>
+
+      <div id="view-settings" class="hidden space-y-8 animate-in fade-in duration-300">
+          <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
+              <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6"><i class="fas fa-cog mr-1"></i> システム設定</h2>
+              
+              <div class="p-6 border border-white/5 bg-slate-900/50 rounded-xl">
+                  <h3 class="text-sm font-bold text-emerald-400 mb-2"><i class="fab fa-line mr-1"></i> LINE連携設定</h3>
+                  <p class="text-[11px] text-slate-400 mb-5 leading-relaxed">
+                      ヤフオクの予算超過や終了前通知、プレバンの在庫変動を受け取るには、LINE USER IDを登録してください。<br>
+                      <span class="text-blue-400">※LINE Developers等のプロファイルから取得したID（Uから始まる文字列）を入力します。</span>
+                  </p>
+                  
+                  <div class="flex flex-col sm:flex-row gap-3">
+                      <div class="flex flex-1 gap-2">
+                          <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 text-white">
+                          <button id="save-line-btn" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-lg text-sm font-bold text-white transition-all shadow-lg">保存</button>
+                      </div>
+                      <button id="test-line-btn" class="text-xs text-slate-300 hover:text-white transition-colors flex items-center gap-2 justify-center px-4 py-3 border border-dashed border-slate-600 hover:border-slate-400 rounded-lg whitespace-nowrap">
+                          <i class="fas fa-paper-plane"></i> テスト送信
+                      </button>
+                  </div>
+              </div>
+              
+              </section>
+      </div>
+
+      <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="glass rounded-3xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl border border-white/10">
+          <div id="preview-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
+          <div class="p-4 bg-slate-900/50 border-t border-white/5 flex gap-3">
+            <button id="preview-cancel" class="flex-1 py-3 rounded-xl text-sm font-bold text-slate-400 btn-ghost">キャンセル</button>
+            <button id="confirm-add-btn" class="flex-[2] py-3 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">この商品を監視する</button>
+          </div>
+        </div>
+      </div>
+
     </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, onSnapshot, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, onSnapshot, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "{{ config.apiKey }}",
@@ -210,6 +257,42 @@
         const loginOverlay = document.getElementById("login-overlay");
         const loginBtn = document.getElementById("login-btn");
         const logoutBtn = document.getElementById("logout-btn");
+        
+        // Settings Elements
+        const saveLineBtn = document.getElementById("save-line-btn");
+        const testLineBtn = document.getElementById("test-line-btn");
+        
+        // Tab Elements
+        const tabScout = document.getElementById("tab-scout");
+        const tabActive = document.getElementById("tab-active");
+        const tabYahoo = document.getElementById("tab-yahoo"); 
+        const tabMonitor = document.getElementById("tab-monitor");
+        const tabSettings = document.getElementById("tab-settings"); // 追加
+        
+        const viewScout = document.getElementById("view-scout");
+        const viewActive = document.getElementById("view-active");
+        const viewYahoo = document.getElementById("view-yahoo"); 
+        const viewMonitor = document.getElementById("view-monitor");
+        const viewSettings = document.getElementById("view-settings"); // 追加
+        
+        // Watchlist Elements
+        const watchlistMonitor = document.getElementById("watchlist"); 
+        const watchlistYahoo = document.getElementById("watchlist-yahoo"); 
+        const itemCountMonitor = document.getElementById("item-count");
+        const itemCountYahoo = document.getElementById("item-count-yahoo");
+        
+        // Scout Elements
+        const scoutInput = document.getElementById("scout-input");
+        const scoutBtn = document.getElementById("scout-btn");
+        const scoutLoader = document.getElementById("scout-loader");
+        const scoutResult = document.getElementById("scout-result");
+
+        // Active Auctions Elements
+        const activeInput = document.getElementById("active-input");
+        const activeBtn = document.getElementById("active-btn");
+        const activeResult = document.getElementById("active-result");
+
+        // Monitor Elements (Old)
         const urlInput = document.getElementById("url-input");
         const inspectBtn = document.getElementById("inspect-btn");
         const inputLoader = document.getElementById("input-loader");
@@ -217,53 +300,60 @@
         const previewContent = document.getElementById("preview-content");
         const previewCancel = document.getElementById("preview-cancel");
         const confirmAddBtn = document.getElementById("confirm-add-btn");
-        const watchlistContainer = document.getElementById("watchlist");
-        const itemCount = document.getElementById("item-count");
-        const saveLineBtn = document.getElementById("save-line-btn");
-        const testLineBtn = document.getElementById("test-line-btn");
-        
-        // CSV Elements
         const csvInput = document.getElementById("csv-input");
         const csvUploadBtn = document.getElementById("csv-upload-btn");
-        const downloadTemplateBtn = document.getElementById("download-template-btn");
-
-        // AI Elements
         const aiSuggestBtn = document.getElementById("ai-suggest-btn");
         const aiRecsContainer = document.getElementById("ai-recs-container");
         const aiRecsList = document.getElementById("ai-recs-list");
         const aiRecsLoader = document.getElementById("ai-recs-loader");
 
-        // Tab & Scout Elements
-        const tabMonitor = document.getElementById("tab-monitor");
-        const tabScout = document.getElementById("tab-scout");
-        const viewMonitor = document.getElementById("view-monitor");
-        const viewScout = document.getElementById("view-scout");
-        const scoutInput = document.getElementById("scout-input");
-        const scoutBtn = document.getElementById("scout-btn");
-        const scoutLoader = document.getElementById("scout-loader");
-        const scoutResult = document.getElementById("scout-result");
-
         let currentUser = null;
         let currentInspectedData = null;
-        let currentAiRecs = []; // AI提案データ保持用
+        let currentAiRecs = []; 
+        window.currentActiveItems = []; 
 
         // --- Tab Switching Logic ---
         function switchTab(tabName) {
+            const baseClass = "px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
+            
+            tabMonitor.className = baseClass + " opacity-50 hover:opacity-100";
+            tabScout.className = baseClass;
+            tabActive.className = baseClass;
+            tabYahoo.className = baseClass;
+            tabSettings.className = "px-4 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
+
+            viewMonitor.classList.add('hidden');
+            viewScout.classList.add('hidden');
+            viewActive.classList.add('hidden');
+            viewYahoo.classList.add('hidden');
+            viewSettings.classList.add('hidden');
+
             if (tabName === 'monitor') {
-                tabMonitor.className = "px-5 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-400 transition-colors";
-                tabScout.className = "px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors";
+                tabMonitor.className = "px-5 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-400 transition-colors whitespace-nowrap";
                 viewMonitor.classList.remove('hidden');
-                viewScout.classList.add('hidden');
-            } else {
-                tabScout.className = "px-5 py-3 text-sm font-bold text-yellow-500 border-b-2 border-yellow-500 transition-colors";
-                tabMonitor.className = "px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors";
+            } else if (tabName === 'scout') {
+                tabScout.className = "px-5 py-3 text-sm font-bold text-yellow-500 border-b-2 border-yellow-500 transition-colors whitespace-nowrap";
                 viewScout.classList.remove('hidden');
-                viewMonitor.classList.add('hidden');
+            } else if (tabName === 'active') {
+                tabActive.className = "px-5 py-3 text-sm font-bold text-purple-400 border-b-2 border-purple-500 transition-colors whitespace-nowrap";
+                viewActive.classList.remove('hidden');
+            } else if (tabName === 'yahoo') {
+                tabYahoo.className = "px-5 py-3 text-sm font-bold text-emerald-400 border-b-2 border-emerald-500 transition-colors whitespace-nowrap";
+                viewYahoo.classList.remove('hidden');
+            } else if (tabName === 'settings') {
+                tabSettings.className = "px-4 py-3 text-sm font-bold text-white border-b-2 border-white transition-colors whitespace-nowrap";
+                viewSettings.classList.remove('hidden');
             }
         }
 
         tabMonitor.onclick = () => switchTab('monitor');
         tabScout.onclick = () => switchTab('scout');
+        tabActive.onclick = () => switchTab('active');
+        tabYahoo.onclick = () => switchTab('yahoo'); 
+        tabSettings.onclick = () => switchTab('settings');
+
+        // ▼ 初期表示のタブを強制的に「AI相場鑑定(scout)」にする
+        switchTab('scout');
 
         // --- Scout Appraise Logic ---
         scoutBtn.onclick = async () => {
@@ -271,7 +361,10 @@
             if (!keyword) return alert("検索キーワードを入力してください");
 
             const originalBtnHtml = scoutBtn.innerHTML;
+            scoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 鑑定中...';
             scoutBtn.disabled = true;
+            scoutBtn.classList.add("opacity-50", "cursor-not-allowed");
+
             scoutLoader.classList.remove("hidden");
             scoutResult.classList.add("hidden");
             scoutResult.innerHTML = "";
@@ -287,7 +380,6 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
 
-                // 利益期待度（A, B, C）に応じて色を変えるロジック
                 let rankColor = "text-yellow-400 bg-yellow-500/20 border-yellow-500/30";
                 if (data.appraisal.profitability.includes("A")) {
                     rankColor = "text-emerald-400 bg-emerald-500/20 border-emerald-500/30";
@@ -295,7 +387,6 @@
                     rankColor = "text-red-400 bg-red-500/20 border-red-500/30";
                 }
 
-                // 取得した個別アイテムをテーブルの行に変換
                 let itemsHtml = "";
                 if (data.market_data.items && data.market_data.items.length > 0) {
                     itemsHtml = data.market_data.items.map(item => `
@@ -320,7 +411,6 @@
                      itemsHtml = `<tr><td colspan="4" class="text-center py-4 text-xs text-slate-500">詳細データが見つかりませんでした</td></tr>`;
                 }
 
-                // 結果の描画
                 scoutResult.innerHTML = `
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div class="bg-slate-950 p-4 rounded-lg border border-white/5 text-center">
@@ -378,7 +468,6 @@
                 `;
                 scoutResult.classList.remove("hidden");
 
-                // 追加質問のロジック設定
                 let followUpCount = 0;
                 const maxFollowUps = 2; 
                 const currentThreadId = data.thread_id; 
@@ -464,8 +553,149 @@
                 scoutResult.innerHTML = `<p class="text-xs text-red-400 text-center py-4"><i class="fas fa-exclamation-triangle mr-1"></i> 鑑定エラー: ${err.message}</p>`;
                 scoutResult.classList.remove("hidden");
             } finally {
+                scoutBtn.innerHTML = originalBtnHtml;
                 scoutBtn.disabled = false;
+                scoutBtn.classList.remove("opacity-50", "cursor-not-allowed");
                 scoutLoader.classList.add("hidden");
+            }
+        };
+
+        // --- Active Auctions Logic ---
+        activeBtn.onclick = async () => {
+            const keyword = activeInput.value.trim();
+            if (!keyword) return alert("検索キーワードを入力してください");
+
+            const originalBtnHtml = activeBtn.innerHTML;
+            activeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 検索中...';
+            activeBtn.disabled = true;
+            activeBtn.classList.add("opacity-50", "cursor-not-allowed");
+
+            activeResult.classList.add("hidden");
+            activeResult.innerHTML = "";
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/auctions/active', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                    body: JSON.stringify({ keyword })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                window.currentActiveItems = data.items;
+
+                let itemsHtml = "";
+                if (data.items && data.items.length > 0) {
+                    itemsHtml = data.items.map((item, index) => `
+                        <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                            <td class="py-3 pl-2">
+                                <img src="${item.image}" class="w-10 h-10 object-cover rounded shadow-sm border border-white/10">
+                            </td>
+                            <td class="py-3 px-2">
+                                <div class="text-[10px] text-white font-medium line-clamp-2 leading-tight">${item.title}</div>
+                            </td>
+                            <td class="py-3 px-2 text-right">
+                                <div class="text-[10px] font-mono text-purple-400 font-bold">${item.price}</div>
+                                ${item.buy_now_price ? `<div class="text-[8px] text-yellow-500 mt-1 border border-yellow-500/30 rounded px-1 inline-block">即決: ${item.buy_now_price}</div>` : ''}
+                            </td>
+                            <td class="py-3 px-2 text-center w-24">
+                                <div class="text-[10px] text-slate-300"><i class="fas fa-gavel text-slate-500 mr-1"></i>${item.bids}</div>
+                                <div class="text-[9px] text-slate-400 mt-1"><i class="far fa-clock text-slate-500 mr-1"></i>${item.end_time}</div>
+                            </td>
+                            <td class="py-3 pr-2 text-right w-20">
+                                <div class="flex justify-end gap-1">
+                                    <button id="add-auction-${index}" onclick="addAuctionToWatchlist(${index})" class="text-emerald-400 hover:text-emerald-300 text-[10px] inline-flex items-center justify-center w-7 h-7 hover:bg-emerald-500/10 rounded-full transition-colors" title="ウォッチリストに追加">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="text-purple-400 hover:text-purple-300 text-[10px] inline-flex items-center justify-center w-7 h-7 hover:bg-purple-500/10 rounded-full transition-colors" title="ヤフオクで開く">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join("");
+                }
+
+                activeResult.innerHTML = `
+                    <div class="mb-2 text-[11px] text-slate-400">
+                        <i class="fas fa-info-circle"></i> 開催中の出品を ${data.items.length} 件見つけました。
+                    </div>
+                    <div class="max-h-[500px] overflow-y-auto rounded-xl border border-white/5 bg-slate-950/50 custom-scrollbar">
+                        <table class="w-full text-left border-collapse relative">
+                            <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0 z-20 shadow-md">
+                                <tr>
+                                    <th class="py-2 pl-2 w-12">画像</th>
+                                    <th class="py-2 px-2">商品名</th>
+                                    <th class="py-2 px-2 text-right w-20">現在価格</th>
+                                    <th class="py-2 px-2 text-center w-24">入札/残り時間</th>
+                                    <th class="py-2 pr-2 text-right w-20">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                activeResult.classList.remove("hidden");
+
+            } catch (err) {
+                activeResult.innerHTML = `<p class="text-xs text-red-400 text-center py-4"><i class="fas fa-exclamation-triangle mr-1"></i> エラー: ${err.message}</p>`;
+                activeResult.classList.remove("hidden");
+            } finally {
+                activeBtn.innerHTML = originalBtnHtml;
+                activeBtn.disabled = false;
+                activeBtn.classList.remove("opacity-50", "cursor-not-allowed");
+            }
+        };
+
+        window.addAuctionToWatchlist = async (index) => {
+            if (!currentUser) return alert("ログインが必要です");
+            
+            const btn = document.getElementById(`add-auction-${index}`);
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            }
+
+            const item = window.currentActiveItems[index];
+            const bidsText = item.bids.includes("入札") ? item.bids : `入札${item.bids}件`;
+            const statusLabel = item.buy_now_price ? `即決: ${item.buy_now_price}` : `${bidsText} / 終了:${item.end_time}`;
+
+            const payload = {
+                title: item.title,
+                price: item.price,
+                imageUrl: item.image,
+                url: item.url,
+                statusText: statusLabel,
+                inStock: true
+            };
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error("保存失敗");
+                
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    btn.classList.replace("text-emerald-400", "text-emerald-600");
+                    btn.classList.remove("hover:bg-emerald-500/10");
+                }
+                alert("ヤフオク監視リストに追加しました！");
+            } catch (err) {
+                console.error(err);
+                alert("エラー: " + err.message);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-eye"></i>';
+                }
             }
         };
 
@@ -493,7 +723,7 @@
             }
         });
 
-        // --- AI おすすめ商品取得・一括登録ロジック (ローディング対応版) ---
+        // --- Monitor (Old PB) Logic ---
         aiSuggestBtn.onclick = async () => {
             const originalBtnHtml = aiSuggestBtn.innerHTML;
             aiSuggestBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分析中...';
@@ -510,12 +740,10 @@
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${idToken}` }
                 });
-                
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
-
                 currentAiRecs = data.recommendations;
-
+                
                 let html = currentAiRecs.map(item => `
                     <div class="bg-slate-900/50 p-3 rounded-lg border border-white/5 flex flex-col sm:flex-row justify-between gap-2 items-start sm:items-center">
                         <div class="flex-1">
@@ -528,15 +756,12 @@
                 `).join("");
 
                 if (currentAiRecs.length > 0) {
-                    html += `
-                    <div class="mt-3 flex justify-end">
+                    html += `<div class="mt-3 flex justify-end">
                         <button id="ai-bulk-add-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-2">
                             <i class="fas fa-layer-group"></i> ${currentAiRecs.length}件すべて一括登録する
                         </button>
-                    </div>
-                    `;
+                    </div>`;
                 }
-
                 aiRecsList.innerHTML = html;
 
                 const bulkAddBtn = document.getElementById("ai-bulk-add-btn");
@@ -544,28 +769,16 @@
                     bulkAddBtn.onclick = async () => {
                         bulkAddBtn.disabled = true;
                         bulkAddBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登録中...';
-                        
                         const urls = currentAiRecs.map(item => item.url);
-                        
                         try {
                             const resBulk = await fetch('/api/watchlist/bulk', {
                                 method: 'POST',
-                                headers: { 
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${idToken}`
-                                },
+                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                                 body: JSON.stringify({ urls })
                             });
-
                             const dataBulk = await resBulk.json();
                             if (!resBulk.ok) throw new Error(dataBulk.error || "一括登録に失敗しました");
-
-                            let msg = dataBulk.message + "\n";
-                            if (dataBulk.results.errors.length > 0) {
-                                msg += "\n⚠️ 一部エラー:\n" + dataBulk.results.errors.join("\n");
-                            }
-                            alert(msg);
-                            
+                            alert(dataBulk.message);
                             aiRecsContainer.classList.add("hidden");
                             currentAiRecs = [];
                         } catch (err) {
@@ -575,9 +788,7 @@
                         }
                     };
                 }
-
             } catch (err) {
-                console.error("AI Recommendation Error:", err);
                 aiRecsList.innerHTML = `<p class="text-[10px] text-red-400 py-2">エラー: ${err.message}</p>`;
             } finally {
                 aiRecsLoader.classList.add("hidden");
@@ -587,16 +798,13 @@
             }
         };
 
-        // --- Inspect Logic ---
         inspectBtn.onclick = async () => {
             const url = urlInput.value.trim();
             if (!url.includes("p-bandai.jp/item/") && !url.includes("/test-item")) {
                 return alert("プレバン商品URL、またはテスト用URLを入力してください");
             }
-
             inspectBtn.disabled = true;
             inputLoader.classList.remove("hidden");
-
             try {
                 const idToken = await currentUser.getIdToken();
                 const res = await fetch('/api/monitor', {
@@ -606,12 +814,10 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
-
                 currentInspectedData = { ...data.preview, url };
                 showPreview(currentInspectedData);
-            } catch (err) {
-                alert(err.message);
-            } finally {
+            } catch (err) { alert(err.message); } 
+            finally {
                 inspectBtn.disabled = false;
                 inputLoader.classList.add("hidden");
             }
@@ -630,11 +836,6 @@
                             ${data.statusText}
                         </span>
                     </div>
-                    ${data.agent_comment ? `
-                        <div class="text-left text-[11px] bg-blue-500/10 p-3 rounded-lg border border-blue-500/20 text-blue-300">
-                            <i class="fas fa-robot mr-1"></i> AI解析: ${data.agent_comment}
-                        </div>
-                    ` : ''}
                 </div>`;
             previewContainer.classList.remove("hidden");
         }
@@ -645,31 +846,19 @@
             if (!currentInspectedData) return;
             confirmAddBtn.disabled = true;
             confirmAddBtn.innerText = "登録中...";
-
             try {
                 const idToken = await currentUser.getIdToken();
-                console.log("📤 Sending to Watchlist API:", currentInspectedData);
-
                 const res = await fetch('/api/watchlist', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'Authorization': `Bearer ${idToken}` 
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                     body: JSON.stringify(currentInspectedData)
                 });
-
-                if (!res.ok) {
-                    const result = await res.json();
-                    throw new Error(result.error || "保存失敗");
-                }
-
+                if (!res.ok) throw new Error("保存失敗");
                 previewContainer.classList.add("hidden");
                 urlInput.value = "";
                 currentInspectedData = null;
-                alert("監視リストに追加しました！");
+                alert("プレバン監視リストに追加しました！");
             } catch (err) { 
-                console.error("Watchlist Error:", err);
                 alert("エラー: " + err.message); 
             } finally { 
                 confirmAddBtn.disabled = false; 
@@ -677,38 +866,18 @@
             }
         };
 
-        // --- CSV Import & Template Download Logic ---
-        downloadTemplateBtn.onclick = () => {
-            const csvContent = "url\nhttps://p-bandai.jp/item/item-1000000000/\nhttps://p-bandai.jp/item/item-1000999999/";
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", "monitor_template.csv");
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-
         csvUploadBtn.onclick = () => csvInput.click();
-
         csvInput.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
             if (!confirm(`${file.name} をインポートしますか？\n(最大5件まで、URL列が必要です)`)) {
-                csvInput.value = "";
-                return;
+                csvInput.value = ""; return;
             }
-
             const originalBtnText = csvUploadBtn.innerHTML;
             csvUploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 送信中...';
             csvUploadBtn.disabled = true;
-
             const formData = new FormData();
             formData.append('file', file);
-
             try {
                 const idToken = await currentUser.getIdToken();
                 const res = await fetch('/api/watchlist/csv', {
@@ -716,77 +885,119 @@
                     headers: { 'Authorization': `Bearer ${idToken}` },
                     body: formData
                 });
-                
                 const data = await res.json();
-
-                if (res.ok) {
-                    let msg = data.message + "\n";
-                    if (data.results.errors.length > 0) {
-                        msg += "\n⚠️ 一部エラー:\n" + data.results.errors.join("\n");
-                    }
-                    alert(msg);
-                } else {
-                    alert("エラー: " + (data.error || "不明なエラー"));
-                }
-            } catch (err) {
-                alert("送信エラー: " + err.message);
-            } finally {
+                if (res.ok) { alert(data.message); } else { alert("エラー: " + (data.error || "不明なエラー")); }
+            } catch (err) { alert("送信エラー: " + err.message); } 
+            finally {
                 csvInput.value = "";
                 csvUploadBtn.innerHTML = originalBtnText;
                 csvUploadBtn.disabled = false;
             }
         };
 
-        // --- Watchlist Realtime Sync ---
+       // --- Watchlist Realtime Sync (URLで自動振り分け) ---
         function initWatchlist(uid) {
             console.log("🚀 監視開始: artifacts/" + APP_ID + "/users/" + uid + "/watchlist");
-            
             const colRef = collection(db, 'artifacts', APP_ID, 'users', uid, 'watchlist');
             
             onSnapshot(colRef, (snap) => {
-                console.log("📊 スナップショット受信! ドキュメント数:", snap.size);
-                itemCount.innerText = snap.size;
-                
+                let countYahoo = 0;
+                let countMonitor = 0;
+                let htmlYahoo = "";
+                let htmlMonitor = "";
+
                 if (snap.empty) {
-                    watchlistContainer.innerHTML = `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
+                    watchlistMonitor.innerHTML = `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
+                    watchlistYahoo.innerHTML = `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
+                    itemCountMonitor.innerText = "0";
+                    itemCountYahoo.innerText = "0";
                     return;
                 }
 
-                watchlistContainer.innerHTML = snap.docs.map(doc => {
+                snap.docs.forEach(doc => {
                     const d = doc.data();
                     const img = d.imageUrl || d.image_url || "";
                     const name = d.title || d.product_name || "不明な商品";
                     const status = d.statusText || d.status || "";
                     const url = d.url || "#";
+                    
+                    const isYahoo = url.includes("yahoo.co.jp");
+                    const iconHtml = isYahoo ? '<i class="fas fa-gavel text-emerald-400 mr-1" title="ヤフオク"></i>' : '<i class="fas fa-box-open text-blue-400 mr-1" title="プレバン"></i>';
+                    const hoverColor = isYahoo ? "hover:border-emerald-500/30" : "hover:border-blue-500/30";
+                    const textColor = isYahoo ? "group-hover:text-emerald-400" : "group-hover:text-blue-400";
+                    const inputFocusColor = isYahoo ? "focus-within:border-emerald-500/50" : "focus-within:border-blue-500/50";
 
-                    return `
-                        <div class="glass p-3 rounded-xl flex gap-3 relative group hover:border-blue-500/30 transition-colors">
-                            <a href="${url}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-0"></a>
-                            
-                            <img src="${img}" class="w-12 h-12 object-cover rounded-lg bg-black relative z-10">
-                            
-                            <div class="flex-1 min-w-0 relative z-10">
-                                <p class="text-[10px] font-bold text-white truncate group-hover:text-blue-400 transition-colors">
-                                    ${name} <i class="fas fa-external-link-alt text-[8px] ml-1 opacity-0 group-hover:opacity-100"></i>
-                                </p>
-                                <p class="text-[9px] text-blue-400">${d.price || ''} / ${status}</p>
+                    const itemHtml = `
+                        <div class="glass p-3 rounded-xl flex flex-col gap-2 relative group ${hoverColor} transition-colors">
+                            <div class="flex gap-3">
+                                <a href="${url}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-0 h-16"></a>
+                                <img src="${img}" class="w-12 h-12 object-cover rounded-lg bg-black relative z-10 mt-1">
+                                
+                                <div class="flex-1 min-w-0 relative z-10">
+                                    <p class="text-[10px] font-bold text-white truncate ${textColor} transition-colors">
+                                        ${iconHtml}${name} <i class="fas fa-external-link-alt text-[8px] ml-1 opacity-0 group-hover:opacity-100"></i>
+                                    </p>
+                                    <p class="text-[9px] ${isYahoo ? 'text-emerald-400/80' : 'text-blue-400'} mt-0.5">${d.price || ''} / ${status}</p>
+                                </div>
+
+                                <button onclick="deleteItem('${doc.id}')" class="relative z-20 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all px-2 h-8">
+                                    <i class="fas fa-trash-alt text-xs"></i>
+                                </button>
                             </div>
-
-                            <button onclick="deleteItem('${doc.id}')" class="relative z-20 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all px-2">
-                                <i class="fas fa-trash-alt text-xs"></i>
-                            </button>
+                            
+                            <div class="flex gap-2 relative z-20 pt-2 border-t border-white/5 mt-1">
+                                ${isYahoo ? `
+                                <div class="flex items-center bg-slate-900 border border-slate-700 rounded ${inputFocusColor} transition-colors w-24">
+                                    <span class="text-[8px] text-slate-500 pl-2">上限¥</span>
+                                    <input type="number" value="${d.my_target_price || ''}" placeholder="入札額" onchange="updateWatchlistData('${doc.id}', 'my_target_price', this.value)" class="w-full bg-transparent border-none outline-none px-1 py-1 text-[10px] text-white placeholder:text-slate-600">
+                                </div>
+                                ` : ''}
+                                <div class="flex items-center flex-1 bg-slate-900 border border-slate-700 rounded ${inputFocusColor} transition-colors">
+                                    <i class="fas fa-pen text-[8px] text-slate-500 pl-2"></i>
+                                    <input type="text" value="${d.memo || ''}" placeholder="検品メモや状態など..." onchange="updateWatchlistData('${doc.id}', 'memo', this.value)" class="w-full bg-transparent border-none outline-none px-2 py-1 text-[10px] text-white placeholder:text-slate-600">
+                                </div>
+                            </div>
                         </div>`;
-                }).join("");
+
+                    if (isYahoo) {
+                        htmlYahoo += itemHtml;
+                        countYahoo++;
+                    } else {
+                        htmlMonitor += itemHtml;
+                        countMonitor++;
+                    }
+                });
+
+                watchlistYahoo.innerHTML = countYahoo > 0 ? htmlYahoo : `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
+                watchlistMonitor.innerHTML = countMonitor > 0 ? htmlMonitor : `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
+                
+                itemCountYahoo.innerText = countYahoo;
+                itemCountMonitor.innerText = countMonitor;
+
             }, (error) => {
                 console.error("❌ Firestoreリスナーエラー:", error);
             });
         }
 
+        window.updateWatchlistData = async (id, field, value) => {
+            if (!currentUser) return;
+            try {
+                const ref = doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'watchlist', id);
+                const finalValue = field === 'my_target_price' ? (value ? parseInt(value, 10) : null) : value;
+                await updateDoc(ref, { 
+                    [field]: finalValue, 
+                    updatedAt: serverTimestamp() 
+                });
+            } catch (err) {
+                console.error("更新エラー:", err);
+                alert("データの保存に失敗しました");
+            }
+        };
+        
         window.deleteItem = async (id) => {
             if (confirm("削除しますか？")) {
                 try {
                     await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'watchlist', id));
-                    console.log("🗑️ Deleted from watchlist:", id);
                 } catch (e) {
                     console.error("Delete Error:", e);
                 }

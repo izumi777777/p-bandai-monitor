@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import urllib.parse
+import unicodedata
 
 # --- ヤフオクスクレイピング用 ---
 from bs4 import BeautifulSoup
@@ -340,17 +341,110 @@ def api_watchlist_csv():
         "results": results
     })
 
+
+# ======================================================================
+# ヤフオク検索キーワード最適化
+# ======================================================================
+def optimize_search_keyword(raw_keyword):
+    """
+    ユーザーの入力をヤフオクでヒットしやすい「あいまい検索」用に最適化する
+    """
+    # 1. 全角英数字を半角に統一（例：ＣＳＭ ➔ CSM）
+    keyword = unicodedata.normalize('NFKC', raw_keyword)
+    
+    # 2. 英語/数字と日本語の境界に自動でスペースを入れる（例：CSMファイズギア ➔ CSM ファイズギア）
+    keyword = re.sub(r'([a-zA-Z0-9])([^\x01-\x7E])', r'\1 \2', keyword)
+    keyword = re.sub(r'([^\x01-\x7E])([a-zA-Z0-9])', r'\1 \2', keyword)
+    
+    # 3. 余分なスペースを1つにまとめる
+    keyword = re.sub(r'\s+', ' ', keyword).strip()
+    
+    return keyword
+
 # =======================================================================================
 # ヤフオク高速落札相場取得
 # =======================================================================================
-def scrape_yahuoku_closed(keyword):
+def scrape_yahuoku_closed(raw_keyword):
     """
-    ヤフオクの落札相場検索をスクレイピングし、直近の落札価格の平均と最高値を返す
+    ヤフオクの落札相場検索（あいまい検索対応版）
     """
     try:
+        # 入力を自動補正（例: "CSMファイズギア" -> "CSM ファイズギア"）
+        keyword = optimize_search_keyword(raw_keyword)
+        logger.info(f"🔍 検索キーワードを最適化: '{raw_keyword}' ➔ '{keyword}'")
+
+        # 検索処理を内部関数化（リトライできるようにするため）
+        def fetch_items(search_kw):
+            encoded = urllib.parse.quote(search_kw)
+            url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?p={encoded}&n=50"
+            res = requests.get(url, impersonate="chrome120", timeout=15)
+            if res.status_code != 200: return []
+                
+            soup = BeautifulSoup(res.text, "html.parser")
+            product_items = soup.find_all("li", class_="Product")
+            
+            fetched = []
+            for item in product_items:
+                try:
+                    title_tag = item.find("a", class_="Product__titleLink")
+                    price_tag = item.find("span", class_="Product__priceValue")
+                    img_tag = item.find("img")
+                    
+                    if title_tag and price_tag:
+                        price_str = price_tag.text.strip().replace(',', '').replace('円', '')
+                        if price_str.isdigit():
+                            fetched.append({
+                                "title": title_tag.text.strip(),
+                                "url": title_tag.get("href", "#"),
+                                "price": f"{int(price_str):,}",
+                                "raw_price": int(price_str),
+                                "image": img_tag.get("src", "") if img_tag else ""
+                            })
+                except Exception:
+                    continue
+            return fetched
+
+        # 1回目の検索（最適化キーワード）
+        items = fetch_items(keyword)
+
+        # 2回目の検索（ヒットしなかった場合の自動フォールバック）
+        # 複数単語でヒットゼロなら、最後の単語を削って条件を緩める (例: CSM ファイズギア ver2 ➔ CSM ファイズギア)
+        if not items and " " in keyword:
+            looser_keyword = " ".join(keyword.split(" ")[:-1])
+            logger.info(f"⚠️ ヒットなし。条件を緩めて再検索します: '{looser_keyword}'")
+            items = fetch_items(looser_keyword)
+
+        if not items:
+            return None
+
+        # 価格計算用
+        raw_prices = [i["raw_price"] for i in items]
+        return {
+            "max_price": f"{max(raw_prices):,}",
+            "avg_price": f"{sum(raw_prices) // len(raw_prices):,}",
+            "sample_count": len(items),
+            "items": items 
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ ヤフオクスクレイピングエラー: {e}")
+        return None
+
+
+# ========================================================
+# 開催中オークション取得処理 (新規追加)
+# ========================================================
+def scrape_yahuoku_active(raw_keyword):
+    """
+    ヤフオクの現在開催中の検索結果をスクレイピングする
+    """
+    try:
+        # 入力を自動補正（あいまい検索対応）
+        keyword = optimize_search_keyword(raw_keyword)
         encoded_keyword = urllib.parse.quote(keyword)
-        # ▼ 変更1: n=20 を n=50 に変更（1ページの最大取得件数を増やす）
-        url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?p={encoded_keyword}&n=50"
+        
+        # 開催中の検索URL
+        url = f"https://auctions.yahoo.co.jp/search/search?p={encoded_keyword}&n=50"
         
         res = requests.get(url, impersonate="chrome120", timeout=15)
         if res.status_code != 200:
@@ -367,43 +461,61 @@ def scrape_yahuoku_closed(keyword):
                 price_tag = item.find("span", class_="Product__priceValue")
                 img_tag = item.find("img")
                 
+                # 即決価格がある場合は取得
+                buy_now_tag = item.find("span", class_="Product__priceValue Product__priceValue--buyNow")
+                buy_now_price = buy_now_tag.text.strip() if buy_now_tag else None
+
+                # ▼ 追加：入札件数の取得（Product__bid 系のクラス名から取得）
+                bid_tag = item.find(class_=re.compile(r"Product__bid"))
+                bids = bid_tag.text.strip() if bid_tag else "0"
+
+                # ▼ 追加：終了時間（残り時間）の取得（Product__time 系のクラス名から取得）
+                time_tag = item.find(class_=re.compile(r"Product__time"))
+                end_time = time_tag.text.strip() if time_tag else "-"
+
                 if title_tag and price_tag:
                     title = title_tag.text.strip()
                     item_url = title_tag.get("href", "#")
-                    price_str = price_tag.text.strip().replace(',', '').replace('円', '')
+                    price_str = price_tag.text.strip()
                     img_url = img_tag.get("src", "") if img_tag else ""
                     
-                    if price_str.isdigit():
-                        items.append({
-                            "title": title,
-                            "url": item_url,
-                            "price": f"{int(price_str):,}",
-                            "raw_price": int(price_str),
-                            "image": img_url
-                        })
+                    items.append({
+                        "title": title,
+                        "url": item_url,
+                        "price": price_str,
+                        "buy_now_price": buy_now_price,
+                        "image": img_url,
+                        "bids": bids,            # フロントに渡すデータに追加
+                        "end_time": end_time     # フロントに渡すデータに追加
+                    })
             except Exception as e:
                 continue
-            
-            # ▼ 変更2: 以下の3行（5件でストップする処理）をまるごと削除します！
-            # if len(items) >= 5:
-            #     break
 
         if not items:
             return None
 
-        raw_prices = [i["raw_price"] for i in items]
-        max_price = max(raw_prices)
-        avg_price = sum(raw_prices) // len(raw_prices)
+        return items
         
-        return {
-            "max_price": f"{max_price:,}",
-            "avg_price": f"{avg_price:,}",
-            "sample_count": len(items),
-            "items": items 
-        }
     except Exception as e:
-        logger.error(f"❌ ヤフオクスクレイピングエラー: {e}")
+        logger.error(f"❌ 開催中オークション取得エラー: {e}")
         return None
+
+# ========================================================
+# API: 開催中オークション追跡
+# ========================================================
+@app.route("/api/auctions/active", methods=["POST"])
+@login_required
+def api_auctions_active():
+    keyword = request.json.get("keyword")
+    if not keyword:
+        return jsonify({"error": "検索キーワードを入力してください"}), 400
+
+    results = scrape_yahuoku_active(keyword)
+    
+    if results is None:
+        return jsonify({"error": "現在開催中のオークションは見つかりませんでした"}), 404
+
+    return jsonify({"items": results})
 
 # ==============================================================================================
 # AIせどり鑑定士 (ヤフオク相場 ➔ AI判定) API
@@ -619,62 +731,128 @@ def handle_message(event):
         app.logger.error(f"Error sending reply: {e}")
 
 # ========================================================================================
+# ヤフオク個別ページ専用のスクレイピング関数
+# ========================================================================================
+def scrape_yahuoku_item_page(url):
+    """
+    ヤフオク個別商品ページの現在価格と残り時間を取得する
+    """
+    try:
+        res = requests.get(url, impersonate="chrome120", timeout=15)
+        if res.status_code != 200:
+            return None
+            
+        soup = BeautifulSoup(res.text, "html.parser")
+        
+        # 現在価格の取得 (クラス名はヤフオクの仕様変更で変わる可能性あり)
+        price_tag = soup.find("dd", class_="Price__value")
+        if not price_tag:
+            return None
+            
+        price_str = price_tag.text.strip()
+        price_int = int(re.sub(r"\D", "", price_str)) # 数字だけ抽出
+        
+        # 残り時間の取得
+        time_tag = soup.find("li", class_="Count__item--time")
+        time_rem = "不明"
+        if time_tag:
+            time_value = time_tag.find("dd", class_="Count__number")
+            if time_value:
+                time_rem = time_value.text.strip() # 例: "8分", "12時間", "終了"
+                
+        return {
+            "price_int": price_int,
+            "price_str": price_str,
+            "time_remaining": time_rem
+        }
+    except Exception as e:
+        logger.error(f"❌ ヤフオク個別取得エラー: {e}")
+        return None
+
+
+# ========================================================================================
 # 監視ジョブ本体 (デバッグログ強化版)
 # ========================================================================================
 def check_watchlist_job():
-    logger.info("⏰ 在庫監視ジョブ開始")
+    logger.info("⏰ 統合在庫・相場監視ジョブ開始")
 
     users_ref = db.collection("artifacts").document(APP_ID).collection("users")
     user_refs = list(users_ref.list_documents())
-    logger.info(f"👤 登録ユーザー数: {len(user_refs)}人")
 
     for user_ref in user_refs:
         uid = user_ref.id
-
-        # LINE設定取得
         line_ref = users_ref.document(uid).collection("settings").document("line").get()
-        if not line_ref.exists:
-            continue
+        if not line_ref.exists: continue
 
         line_user_id = line_ref.to_dict().get("lineUserId")
-        if not line_user_id:
-            continue
+        if not line_user_id: continue
 
         watchlist_ref = users_ref.document(uid).collection("watchlist")
         items = list(watchlist_ref.stream())
 
         for item_doc in items:
             item = item_doc.to_dict()
-            url = item.get("url")
+            url = item.get("url", "")
             title = item.get("title", "名称不明")
 
-            scraped = scrape_premium_bandai(url)
-            if not scraped:
-                continue
+            # ==========================================
+            # プレバン監視ロジック
+            # ==========================================
+            if "p-bandai.jp" in url:
+                scraped = scrape_premium_bandai(url)
+                if not scraped: continue
 
-            prev_status = item.get("inStock", False)
-            current_status = scraped["inStock"]
-            
-            # 状態変化チェック
-            if prev_status != current_status:
-                logger.info(f"🔔 在庫変化検知: {title}")
-
-                # Firestore 更新
-                item_doc.reference.update(
-                    {
+                prev_status = item.get("inStock", False)
+                current_status = scraped["inStock"]
+                
+                if prev_status != current_status:
+                    item_doc.reference.update({
                         "inStock": current_status,
                         "statusText": scraped["statusText"],
                         "lastChecked": firestore.SERVER_TIMESTAMP,
-                        "lastNotifiedStatus": current_status,
-                    }
-                )
+                    })
+                    msg = f"📦 プレバン在庫変動\n{title}\n状態: {scraped['statusText']}\n{url}"
+                    send_line_notification(line_user_id, msg)
 
-                # LINE 通知
-                msg = f"""📦 在庫変動通知
-{title}
-状態: {scraped["statusText"]}
-{url}"""
-                send_line_notification(line_user_id, msg)
+            # ==========================================
+            # ヤフオク監視ロジック (新規追加)
+            # ==========================================
+            elif "yahoo.co.jp" in url:
+                scraped = scrape_yahuoku_item_page(url)
+                if not scraped: continue
+
+                updates = {}
+                msgs = []
+                current_price = scraped["price_int"]
+                time_rem = scraped["time_remaining"]
+
+                # ① 高値更新チェック（自分が設定した上限を超えたか）
+                my_limit = item.get("my_target_price")
+                if my_limit and current_price > my_limit:
+                    # 同じ価格で何度も通知しないためのフラグチェック
+                    if item.get("last_notified_price") != current_price:
+                        msgs.append(f"⚠️ 予算超過通知\n設定上限: {my_limit:,}円\n現在価格: {current_price:,}円に更新されました。")
+                        updates["last_notified_price"] = current_price
+
+                # ② 終了10分前チェック
+                # 「分」が含まれていて、かつ10以下の場合に通知
+                if "分" in time_rem:
+                    try:
+                        mins = int(re.sub(r"\D", "", time_rem))
+                        if mins <= 10 and not item.get("notified_10min"):
+                            msgs.append(f"⏳ 終了間近通知\n残り時間: {time_rem}\n現在価格: {current_price:,}円")
+                            updates["notified_10min"] = True # 一度通知したらフラグを立てる
+                    except ValueError:
+                        pass
+
+                # 変更や通知すべき事象があればFirestore更新とLINE送信
+                updates["statusText"] = f"現在:{scraped['price_str']} / 残り:{time_rem}"
+                updates["lastChecked"] = firestore.SERVER_TIMESTAMP
+                item_doc.reference.update(updates)
+
+                if msgs:
+                    combined_msg = f"🔨 ヤフオク監視\n{title}\n\n" + "\n---\n".join(msgs) + f"\n\n{url}"
+                    send_line_notification(line_user_id, combined_msg)
 
 
 # ========================================================
@@ -865,7 +1043,7 @@ if __name__ == "__main__":
     scheduler.add_job(
         check_watchlist_job,
         trigger="interval",
-        minutes=10,
+        minutes=5,
         id="watchlist_checker",
         replace_existing=True,
     )
