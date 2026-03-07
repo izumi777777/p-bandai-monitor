@@ -59,6 +59,9 @@ LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", "service-account-key.json")
 APP_ID = os.getenv("APP_ID", "pb-stock-monitor-pro")
 
+# 環境判定（本番かどうか）
+IS_PRODUCTION = os.getenv("FLASK_ENV") == "production" or os.getenv("ENV") == "production"
+
 # ==========================
 # Firebase 初期化
 # ==========================
@@ -91,10 +94,13 @@ agent = project_client.agents.get_agent(AGENT_ID)
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        # 開発用: 環境変数で認証をスキップできるように設定可能
+        # 開発用: 環境変数で認証をスキップできるように設定可能（※本番では無効）
         if os.getenv("SKIP_AUTH") == "true":
-            request.user = {"uid": "debug_user"}
-            return f(*args, **kwargs)
+            if IS_PRODUCTION:
+                logger.warning("⚠️ 本番環境で SKIP_AUTH が有効になっていますが無視されました")
+            else:
+                request.user = {"uid": "debug_user"}
+                return f(*args, **kwargs)
 
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
@@ -117,10 +123,77 @@ def login_required(f):
 # ==========================
 # ロジック関数
 # ==========================
+def is_allowed_p_bandai_or_test_url(url: str) -> bool:
+    """
+    プレミアムバンダイ or テスト用URL(/test-item) かどうかを厳格にチェック
+    SSRF対策のため、スキーム・ホスト名を検証する
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return False
+
+    # スキーム制限
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    hostname = (parsed.hostname or "").lower()
+    path = parsed.path or ""
+
+    # 自アプリ用テストページを許可
+    if "/test-item" in path:
+        return True
+
+    # プレミアムバンダイのみ許可
+    if hostname == "p-bandai.jp" or hostname.endswith(".p-bandai.jp"):
+        return True
+
+    return False
+
+
+def is_allowed_yahoo_auction_url(url: str) -> bool:
+    """
+    ヤフオク個別ページURLかどうかを厳格にチェック
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return False
+
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return False
+
+    # ヤフオク関連ドメインのみ許可
+    allowed_hosts = [
+        "auctions.yahoo.co.jp",
+        "page.auctions.yahoo.co.jp",
+    ]
+    if hostname in allowed_hosts or any(
+        hostname.endswith("." + h) for h in allowed_hosts
+    ):
+        return True
+
+    return False
+
+
 def scrape_premium_bandai(url):
     try:
+        # URLバリデーション（SSRF対策）
+        if not is_allowed_p_bandai_or_test_url(url):
+            logger.warning(f"⚠️ 許可されていないURLへのアクセス試行がブロックされました: {url}")
+            return None
+
         # プレミアムバンダイのBot対策を回避するために impersonate を使用
-        res = requests.get(url, impersonate="chrome120", timeout=15)
+        res = requests.get(
+            url,
+            impersonate="chrome120",
+            timeout=15,
+            allow_redirects=False,  # リダイレクト先もホワイトリスト外に飛ばさない
+        )
         if res.status_code != 200:
             logger.error(f"❌ サイトアクセス失敗: {res.status_code}")
             return None
@@ -309,8 +382,8 @@ def api_watchlist_csv():
         #     results["errors"].append(f"{index+1}行目: プレミアムバンダイのURLではありません")
         #     continue
         
-        # プレバンURLか簡易チェック（テスト用URLも許可）
-        if "p-bandai.jp" not in url and "/test-item" not in url:
+        # プレバンURLか簡易チェック（テスト用URLも許可） ※SSRF対策で厳格判定
+        if not is_allowed_p_bandai_or_test_url(url):
             results["errors"].append(f"{index+1}行目: 対象外のURLです")
             continue
 
@@ -738,7 +811,17 @@ def scrape_yahuoku_item_page(url):
     ヤフオク個別商品ページの現在価格と残り時間を取得する
     """
     try:
-        res = requests.get(url, impersonate="chrome120", timeout=15)
+        # URLバリデーション（SSRF対策）
+        if not is_allowed_yahoo_auction_url(url):
+            logger.warning(f"⚠️ 許可されていないヤフオクURLへのアクセス試行がブロックされました: {url}")
+            return None
+
+        res = requests.get(
+            url,
+            impersonate="chrome120",
+            timeout=15,
+            allow_redirects=False,  # リダイレクトチェーンを制限
+        )
         if res.status_code != 200:
             return None
             
@@ -798,7 +881,7 @@ def check_watchlist_job():
             # ==========================================
             # プレバン監視ロジック
             # ==========================================
-            if "p-bandai.jp" in url:
+            if is_allowed_p_bandai_or_test_url(url):
                 scraped = scrape_premium_bandai(url)
                 if not scraped: continue
 
@@ -817,7 +900,7 @@ def check_watchlist_job():
             # ==========================================
             # ヤフオク監視ロジック (新規追加)
             # ==========================================
-            elif "yahoo.co.jp" in url:
+            elif is_allowed_yahoo_auction_url(url):
                 scraped = scrape_yahuoku_item_page(url)
                 if not scraped: continue
 
@@ -944,7 +1027,7 @@ def api_watchlist_bulk():
         if not url:
             continue
 
-        if "p-bandai.jp" not in url and "/test-item" not in url:
+        if not is_allowed_p_bandai_or_test_url(url):
             results["errors"].append(f"{index+1}件目: 対象外のURLです")
             continue
 
@@ -978,57 +1061,59 @@ def api_watchlist_bulk():
 
 # ========================================================
 # テスト用ダミーページ (E2Eテスト用)
+# 本番環境では自動的に無効化する
 # ========================================================
-# メモリ上で擬似在庫状態を管理
-MOCK_ITEM_IN_STOCK = False
+if not IS_PRODUCTION:
+    # メモリ上で擬似在庫状態を管理
+    MOCK_ITEM_IN_STOCK = False
 
-@app.route("/test-item")
-def test_item_page():
-    global MOCK_ITEM_IN_STOCK
-    stock_mark = "○" if MOCK_ITEM_IN_STOCK else "×"
-    status_text = "🟢 在庫あり" if MOCK_ITEM_IN_STOCK else "🔴 在庫なし"
-    
-    # scrape_premium_bandai() の正規表現に引っかかるように変数を配置
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <title>【テスト用】擬似プレバン商品 | プレミアムバンダイ</title>
-        <meta property="og:image" content="https://dummyimage.com/400x400/2563eb/ffffff&text=TEST+ITEM">
-        <style>
-            body {{ font-family: sans-serif; text-align: center; padding: 50px; background: #f3f4f6; }}
-            .card {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }}
-            button {{ background: #2563eb; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: 0.2s; }}
-            button:hover {{ background: #1d4ed8; transform: translateY(-2px); }}
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h2 style="color: #333;">【テスト用】擬似プレバン商品</h2>
-            <p style="font-size: 32px; font-weight: bold; margin: 20px 0;">{status_text}</p>
-            <form action="/test-item/toggle" method="POST">
-                <button type="submit">在庫状態を切り替える</button>
-            </form>
-            <p style="margin-top:20px; font-size: 12px; color: #666;">
-                このページのURLを監視リストに登録して、システム全体の動作テストを行えます。
-            </p>
-        </div>
+    @app.route("/test-item")
+    def test_item_page():
+        global MOCK_ITEM_IN_STOCK
+        stock_mark = "○" if MOCK_ITEM_IN_STOCK else "×"
+        status_text = "🟢 在庫あり" if MOCK_ITEM_IN_STOCK else "🔴 在庫なし"
         
-        <script>
-            var data = {{ price: '9999' }};
-            var orderstock_list = {{"item_id_123":"{stock_mark}"}};
-        </script>
-    </body>
-    </html>
-    """
-    return html
+        # scrape_premium_bandai() の正規表現に引っかかるように変数を配置
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <title>【テスト用】擬似プレバン商品 | プレミアムバンダイ</title>
+            <meta property="og:image" content="https://dummyimage.com/400x400/2563eb/ffffff&text=TEST+ITEM">
+            <style>
+                body {{ font-family: sans-serif; text-align: center; padding: 50px; background: #f3f4f6; }}
+                .card {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }}
+                button {{ background: #2563eb; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: 0.2s; }}
+                button:hover {{ background: #1d4ed8; transform: translateY(-2px); }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h2 style="color: #333;">【テスト用】擬似プレバン商品</h2>
+                <p style="font-size: 32px; font-weight: bold; margin: 20px 0;">{status_text}</p>
+                <form action="/test-item/toggle" method="POST">
+                    <button type="submit">在庫状態を切り替える</button>
+                </form>
+                <p style="margin-top:20px; font-size: 12px; color: #666;">
+                    このページのURLを監視リストに登録して、システム全体の動作テストを行えます。
+                </p>
+            </div>
+            
+            <script>
+                var data = {{ price: '9999' }};
+                var orderstock_list = {{"item_id_123":"{stock_mark}"}};
+            </script>
+        </body>
+        </html>
+        """
+        return html
 
-@app.route("/test-item/toggle", methods=["POST"])
-def toggle_test_item():
-    global MOCK_ITEM_IN_STOCK
-    MOCK_ITEM_IN_STOCK = not MOCK_ITEM_IN_STOCK
-    return redirect(url_for('test_item_page'))
+    @app.route("/test-item/toggle", methods=["POST"])
+    def toggle_test_item():
+        global MOCK_ITEM_IN_STOCK
+        MOCK_ITEM_IN_STOCK = not MOCK_ITEM_IN_STOCK
+        return redirect(url_for('test_item_page'))
 
 # ==========================
 # 起動
