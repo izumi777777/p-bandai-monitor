@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>せどりスカウター💰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #f3f4f6; }
+    </style>
+</head>
+<body class="p-4 pb-20">
+
+    <header class="mb-6 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">
+            💰 仕入れリスト
+        </h1>
+        <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+            {{ items|length }}件 ヒット
+        </span>
+    </header>
+
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {% for item in items %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative">
+            
+            <div class="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg">
+                利益 +{{ "{:,}".format(item.profit if item.profit else 0) }}円
+            </div>
+
+            <div class="p-5">
+                <h2 class="text-lg font-bold text-gray-900 mb-1 leading-tight">
+                    {{ item.title }}
+                </h2>
+                <p class="text-sm text-gray-500 mb-3">
+                    <span class="inline-block bg-gray-200 rounded px-1 text-xs">{{ item.edition if item.edition else "通常版" }}</span>
+                    巻数: <span class="font-bold">{{ item.volume_count }}</span>巻
+                </p>
+
+                <div class="bg-gray-50 rounded-lg p-3 mb-4 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <p class="text-gray-400 text-xs">仕入れ目安(NETOFF)</p>
+                        <p class="font-bold text-gray-700 text-lg">
+                            {{ "{:,}".format(item.estimated_cost if item.estimated_cost else 0) }}円
+                        </p>
+                        {% if item.calc_note %}
+                        <p class="text-xs text-gray-400 truncate" title="{{ item.calc_note }}">{{ item.calc_note }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <p class="text-gray-400 text-xs">ヤフオク相場</p>
+                        <p class="font-bold text-blue-600 text-lg">
+                            {{ "{:,}".format(item.yahoo_price if item.yahoo_price else 0) }}円
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="https://www.netoff.co.jp/cmdtyallsearch/result?q={{ item.title }}" target="_blank" 
+                       class="flex-1 bg-blue-600 text-white text-center py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition flex items-center justify-center">
+                        ネットオフで見る
+                    </a>
+                    
+                    {% if item.url %}
+                    <a href="{{ item.url }}" target="_blank" 
+                       class="w-12 flex items-center justify-center bg-yellow-400 text-yellow-900 rounded-lg font-bold hover:bg-yellow-500 transition">
+                        Y!
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-3 text-center">
+                    <a href="#" class="text-xs text-gray-400 hover:text-red-500 underline">
+                        リストから除外
+                    </a>
+                </div>
+
+            </div>
+        </div>
+        {% else %}
+        <div class="col-span-full text-center py-10">
+            <div class="text-4xl mb-4">📭</div>
+            <p class="text-gray-500">現在、利益が出る商品は見つかっていません。<br>スクリプトを実行して探してみましょう！</p>
+        </div>
+        {% endfor %}
+    </div>
+
+</body>
+</html>
