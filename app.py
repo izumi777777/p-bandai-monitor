@@ -188,14 +188,33 @@ def scrape_premium_bandai(url):
             return None
 
         # プレミアムバンダイのBot対策を回避するために impersonate を使用
+        # リダイレクトは一度だけ手動追従し、遷移先もホワイトリストで再チェックする
         res = requests.get(
             url,
             impersonate="chrome120",
             timeout=15,
-            allow_redirects=False,  # リダイレクト先もホワイトリスト外に飛ばさない
+            allow_redirects=False,  # 直接の自動リダイレクトは禁止
         )
+
+        if res.status_code in (301, 302, 303, 307, 308):
+            redirect_url = res.headers.get("Location")
+            if redirect_url:
+                redirect_url = urllib.parse.urljoin(url, redirect_url)
+                if is_allowed_p_bandai_or_test_url(redirect_url):
+                    logger.info(f"↪️ プレバンURLリダイレクト検知: {url} -> {redirect_url}")
+                    res = requests.get(
+                        redirect_url,
+                        impersonate="chrome120",
+                        timeout=15,
+                        allow_redirects=False,
+                    )
+                    url = redirect_url
+                else:
+                    logger.warning(f"⚠️ ホワイトリスト外へのリダイレクトをブロック: {redirect_url}")
+                    return None
+
         if res.status_code != 200:
-            logger.error(f"❌ サイトアクセス失敗: {res.status_code}")
+            logger.warning(f"⚠️ サイトアクセス失敗: {res.status_code}")
             return None
 
         html = res.text
