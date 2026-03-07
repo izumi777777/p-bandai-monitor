@@ -930,12 +930,11 @@
                     const itemHtml = `
                         <div class="glass p-3 rounded-xl flex flex-col gap-2 relative group ${hoverColor} transition-colors">
                             <div class="flex gap-3">
-                                <a href="${url}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-0 h-16"></a>
                                 <img src="${img}" class="w-12 h-12 object-cover rounded-lg bg-black relative z-10 mt-1">
                                 
                                 <div class="flex-1 min-w-0 relative z-10">
                                     <p class="text-[10px] font-bold text-white truncate ${textColor} transition-colors">
-                                        ${iconHtml}${name} <i class="fas fa-external-link-alt text-[8px] ml-1 opacity-0 group-hover:opacity-100"></i>
+                                        ${iconHtml}${name}
                                     </p>
                                     <p class="text-[9px] ${isYahoo ? 'text-emerald-400/80' : 'text-blue-400'} mt-0.5">${d.price || ''} / ${status}</p>
                                 </div>
@@ -945,7 +944,7 @@
                                 </button>
                             </div>
                             
-                            <div class="flex gap-2 relative z-20 pt-2 border-t border-white/5 mt-1">
+                            <div class="flex gap-2 items-center relative z-20 pt-2 border-t border-white/5 mt-1">
                                 ${isYahoo ? `
                                 <div class="flex items-center bg-slate-900 border border-slate-700 rounded ${inputFocusColor} transition-colors w-24">
                                     <span class="text-[8px] text-slate-500 pl-2">上限¥</span>
@@ -956,6 +955,11 @@
                                     <i class="fas fa-pen text-[8px] text-slate-500 pl-2"></i>
                                     <input type="text" value="${d.memo || ''}" placeholder="検品メモや状態など..." onchange="updateWatchlistData('${doc.id}', 'memo', this.value)" class="w-full bg-transparent border-none outline-none px-2 py-1 text-[10px] text-white placeholder:text-slate-600">
                                 </div>
+                                ${isYahoo ? `
+                                <a href="${url}" target="_blank" rel="noopener noreferrer" class="ml-1 px-2 py-1 rounded-lg border border-emerald-500/40 text-[9px] text-emerald-400 hover:bg-emerald-500/10 whitespace-nowrap flex items-center gap-1">
+                                    <i class="fas fa-external-link-alt"></i> 開く
+                                </a>
+                                ` : ''}
                             </div>
                         </div>`;
 

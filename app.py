@@ -451,7 +451,8 @@ def scrape_yahuoku_closed(raw_keyword):
             encoded = urllib.parse.quote(search_kw)
             url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?p={encoded}&n=50"
             res = requests.get(url, impersonate="chrome120", timeout=15)
-            if res.status_code != 200: return []
+            if res.status_code != 200:
+                return []
                 
             soup = BeautifulSoup(res.text, "html.parser")
             product_items = soup.find_all("li", class_="Product")
@@ -466,9 +467,14 @@ def scrape_yahuoku_closed(raw_keyword):
                     if title_tag and price_tag:
                         price_str = price_tag.text.strip().replace(',', '').replace('円', '')
                         if price_str.isdigit():
+                            # ヤフオクのリンクが相対パスの場合でも絶対URLに正規化する
+                            item_url = urllib.parse.urljoin(
+                                "https://auctions.yahoo.co.jp",
+                                title_tag.get("href", "#"),
+                            )
                             fetched.append({
                                 "title": title_tag.text.strip(),
-                                "url": title_tag.get("href", "#"),
+                                "url": item_url,
                                 "price": f"{int(price_str):,}",
                                 "raw_price": int(price_str),
                                 "image": img_tag.get("src", "") if img_tag else ""
@@ -548,7 +554,11 @@ def scrape_yahuoku_active(raw_keyword):
 
                 if title_tag and price_tag:
                     title = title_tag.text.strip()
-                    item_url = title_tag.get("href", "#")
+                    # ヤフオクのリンクが相対パスの場合でも絶対URLに正規化する
+                    item_url = urllib.parse.urljoin(
+                        "https://auctions.yahoo.co.jp",
+                        title_tag.get("href", "#"),
+                    )
                     price_str = price_tag.text.strip()
                     img_url = img_tag.get("src", "") if img_tag else ""
                     
@@ -900,14 +910,46 @@ def check_watchlist_job():
             # ==========================================
             # ヤフオク監視ロジック (新規追加)
             # ==========================================
-            elif is_allowed_yahoo_auction_url(url):
+            else:
+                # ヤフオクの相対パスで保存されている既存データを自動補正
+                if url and url.startswith("/"):
+                    fixed_url = urllib.parse.urljoin(
+                        "https://auctions.yahoo.co.jp",
+                        url,
+                    )
+                    url = fixed_url
+                    try:
+                        item_doc.reference.update({"url": fixed_url})
+                    except Exception as e:
+                        logger.error(f"❌ URL自動補正エラー: {e}")
+
+            if is_allowed_yahoo_auction_url(url):
                 scraped = scrape_yahuoku_item_page(url)
-                if not scraped: continue
+                if not scraped:
+                    continue
+
+                # 期限切れ（終了）したオークションはアーカイブしてから監視リストから削除
+                time_rem = scraped["time_remaining"]
+                if "終了" in time_rem:
+                    try:
+                        archive_ref = users_ref.document(uid).collection("yahoo_archive")
+                        archive_data = {
+                            **item,
+                            "finalPrice": scraped["price_int"],
+                            "finalPriceText": scraped["price_str"],
+                            "endedAt": firestore.SERVER_TIMESTAMP,
+                            "sourceUrl": url,
+                        }
+                        archive_ref.add(archive_data)
+                        logger.info(f"📦 ヤフオク終了オークションをアーカイブ: {title} ({url})")
+                        item_doc.reference.delete()
+                    except Exception as e:
+                        logger.error(f"❌ 終了オークションアーカイブ/削除エラー: {e}")
+                    continue
 
                 updates = {}
                 msgs = []
                 current_price = scraped["price_int"]
-                time_rem = scraped["time_remaining"]
 
                 # ① 高値更新チェック（自分が設定した上限を超えたか）
                 my_limit = item.get("my_target_price")
