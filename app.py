@@ -1299,19 +1299,9 @@ if not IS_PRODUCTION:
 # 起動
 # ==========================
 if __name__ == "__main__":
-    import os
-
-    # 環境変数PORTがあればそれを使う（App Runner用）
-    # なければ8080を使う（ローカル・EC2テスト用）
     port = int(os.environ.get("PORT", 8080))
-
-    scheduler.add_job(
-        check_watchlist_job,
-        trigger="interval",
-        minutes=5,
-        id="watchlist_checker",
-        replace_existing=True,
-    )
+    scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
     scheduler.start()
-    # 開発環境でVSCodeなどから実行する場合
+    
+    logger.info(f"🚀 サーバー起動準備完了 (Port: {port})")
     app.run(host="0.0.0.0", port=port, debug=False)
