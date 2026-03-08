@@ -93,25 +93,57 @@ except Exception as e:
 project_client = None
 agent = None
 
+# 環境変数（新API用）
+AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
+AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
+AZURE_PROJECT_NAME = os.getenv("AZURE_PROJECT_NAME")
+
 try:
-    if AZURE_PROJECT_ENDPOINT and AGENT_ID:
-        project_client = AIProjectClient(
-            credential=DefaultAzureCredential(),
-            endpoint=AZURE_PROJECT_ENDPOINT
-        )
-        # SDKバージョンによってメソッド名が異なるため、全パターンを試みる
-        for _method in ["get_agent", "get"]:
+    if AGENT_ID:
+        credential = DefaultAzureCredential()
+
+        # 新API (azure-ai-projects >= 1.0.0b9 以降):
+        #   AIProjectClient(credential, subscription_id, resource_group_name, project_name)
+        # 旧API:
+        #   AIProjectClient(credential=..., endpoint=...)
+        # 両方試みて成功した方を使う
+        if AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP and AZURE_PROJECT_NAME:
             try:
-                if hasattr(project_client.agents, _method):
-                    agent = getattr(project_client.agents, _method)(AGENT_ID)
-                    if agent:
-                        logger.info(f"✅ Azure AI Project 連携成功 (method: {_method})")
-                        break
-            except Exception as _e:
-                logger.warning(f"⚠️ agents.{_method}() 失敗: {_e}")
-                continue
-        if not agent:
-            logger.warning("⚠️ Azure Agent取得できず。AIなしで起動します。")
+                project_client = AIProjectClient(
+                    credential=credential,
+                    subscription_id=AZURE_SUBSCRIPTION_ID,
+                    resource_group_name=AZURE_RESOURCE_GROUP,
+                    project_name=AZURE_PROJECT_NAME
+                )
+                logger.info("✅ Azure AI Project 初期化成功 (新API: subscription_id方式)")
+            except Exception as e1:
+                logger.warning(f"⚠️ 新API初期化失敗、旧APIにフォールバック: {e1}")
+                if AZURE_PROJECT_ENDPOINT:
+                    project_client = AIProjectClient(
+                        credential=credential,
+                        endpoint=AZURE_PROJECT_ENDPOINT
+                    )
+                    logger.info("✅ Azure AI Project 初期化成功 (旧API: endpoint方式)")
+        elif AZURE_PROJECT_ENDPOINT:
+            project_client = AIProjectClient(
+                credential=credential,
+                endpoint=AZURE_PROJECT_ENDPOINT
+            )
+            logger.info("✅ Azure AI Project 初期化成功 (旧API: endpoint方式)")
+
+        # Agentの取得（メソッド名の揺らぎを吸収）
+        if project_client:
+            for _method in ["get_agent", "get"]:
+                try:
+                    if hasattr(project_client.agents, _method):
+                        agent = getattr(project_client.agents, _method)(AGENT_ID)
+                        if agent:
+                            logger.info(f"✅ Azure Agent取得成功 (method: {_method})")
+                            break
+                except Exception as _e:
+                    logger.warning(f"⚠️ agents.{_method}() 失敗: {_e}")
+            if not agent:
+                logger.warning("⚠️ Azure Agent取得できず。AIなしで起動します。")
     else:
         logger.warning("⚠️ Azure環境変数が未設定のためAIをスキップ")
 except Exception as e:
@@ -495,11 +527,25 @@ def api_add_watchlist():
         return jsonify({"error": str(e)}), 500
 
 # ==========================
-# 起動
+# APScheduler 起動 (gunicorn対応)
+# gunicornは if __name__ ブロックを実行しないため、モジュールレベルで起動する。
+# AppRunnerのデフォルトはworker=1なので多重起動は通常起きない。
+# 万が一マルチワーカー構成にする場合は DISABLE_SCHEDULER=true で無効化すること。
+# ==========================
+if os.getenv("DISABLE_SCHEDULER") != "true":
+    try:
+        _scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
+        # TODO: ジョブをここに追加する
+        # _scheduler.add_job(check_watchlist_job, 'interval', minutes=5)
+        _scheduler.start()
+        logger.info("✅ APScheduler 起動完了")
+    except Exception as e:
+        logger.error(f"❌ APScheduler 起動失敗: {e}")
+
+# ==========================
+# 起動 (flask直接実行時のみ)
 # ==========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
-    scheduler.start()
     logger.info(f"🚀 サーバー起動 (Port: {port})")
     app.run(host="0.0.0.0", port=port, debug=False)
