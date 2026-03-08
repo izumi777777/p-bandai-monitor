@@ -79,13 +79,25 @@ except Exception as e:
 
 
 # ==========================
-# Azure 初期化
+# Azure 初期化（エラーでクラッシュしないように保護）
 # ==========================
-# DefaultAzureCredentialはローカル環境では Azure CLI 等でのログインが必要です
-project_client = AIProjectClient(
-    credential=DefaultAzureCredential(), endpoint=AZURE_PROJECT_ENDPOINT
-)
-agent = project_client.agents.get_agent(AGENT_ID)
+project_client = None
+agent = None
+
+try:
+    # App Runner等で認証が通らない場合でもサーバー自体は起動させるためのtry-except
+    if AZURE_PROJECT_ENDPOINT and AGENT_ID:
+        project_client = AIProjectClient(
+            credential=DefaultAzureCredential(), 
+            endpoint=AZURE_PROJECT_ENDPOINT
+        )
+        agent = project_client.agents.get_agent(AGENT_ID)
+        logger.info("✅ Azure AI Project 連携成功")
+    else:
+        logger.warning("⚠️ Azure関連の環境変数 (AZURE_PROJECT_ENDPOINT, AGENT_ID) が未設定です")
+except Exception as e:
+    logger.error(f"❌ Azure初期化エラー: {e}")
+    logger.warning("⚠️ Azure認証情報が不足しているため、AI機能は一時的に無効化されます")
 
 
 # ==========================
