@@ -29,7 +29,15 @@ from azure.ai.agents.models import ListSortOrder
 
 # --- その他 ---
 from dotenv import load_dotenv
-from curl_cffi import requests
+
+# curl_cffi をフォールバック付きでインポート（AppRunner環境対応）
+try:
+    from curl_cffi import requests as cffi_requests
+    USE_CFFI = True
+except ImportError:
+    import requests as _requests
+    USE_CFFI = False
+
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 
@@ -44,8 +52,18 @@ logger = logging.getLogger(__name__)
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET")
 
-line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
+# LINE SDK: 環境変数未設定時のクラッシュを防ぐ
+line_bot_api = None
+handler = None
+if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
+    try:
+        line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
+        handler = WebhookHandler(LINE_CHANNEL_SECRET)
+        logger.info("✅ LINE Bot SDK 初期化成功")
+    except Exception as e:
+        logger.warning(f"⚠️ LINE Bot SDK 初期化スキップ: {e}")
+else:
+    logger.warning("⚠️ LINE環境変数が未設定のためLINE Bot SDK をスキップ")
 
 app = Flask(__name__)
 
@@ -78,21 +96,42 @@ agent = None
 try:
     if AZURE_PROJECT_ENDPOINT and AGENT_ID:
         project_client = AIProjectClient(
-            credential=DefaultAzureCredential(), 
+            credential=DefaultAzureCredential(),
             endpoint=AZURE_PROJECT_ENDPOINT
         )
-        if hasattr(project_client.agents, "get_agent"):
-            agent = project_client.agents.get_agent(AGENT_ID)
-        elif hasattr(project_client.agents, "get"):
-            agent = project_client.agents.get(AGENT_ID)
-        if agent:
-            logger.info("✅ Azure AI Project 連携成功")
+        # SDKバージョンによってメソッド名が異なるため、全パターンを試みる
+        for _method in ["get_agent", "get"]:
+            try:
+                if hasattr(project_client.agents, _method):
+                    agent = getattr(project_client.agents, _method)(AGENT_ID)
+                    if agent:
+                        logger.info(f"✅ Azure AI Project 連携成功 (method: {_method})")
+                        break
+            except Exception as _e:
+                logger.warning(f"⚠️ agents.{_method}() 失敗: {_e}")
+                continue
+        if not agent:
+            logger.warning("⚠️ Azure Agent取得できず。AIなしで起動します。")
+    else:
+        logger.warning("⚠️ Azure環境変数が未設定のためAIをスキップ")
 except Exception as e:
-    logger.error(f"❌ Azure初期化エラー: {e}")
+    # ここで例外をキャッチしてgunicornのクラッシュを防ぐ
+    logger.error(f"❌ Azure初期化エラー（サーバーは継続起動）: {e}")
+    project_client = None
+    agent = None
 
 # ==========================
 # 共通ユーティリティ
 # ==========================
+def http_get(url, timeout=15):
+    """curl_cffi / requests フォールバック付きGET"""
+    if USE_CFFI:
+        return cffi_requests.get(url, impersonate="chrome120", timeout=timeout)
+    else:
+        return _requests.get(url, timeout=timeout, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -126,7 +165,7 @@ def scrape_yahuoku_closed(raw_keyword):
         keyword = optimize_search_keyword(raw_keyword)
         encoded = urllib.parse.quote(keyword)
         url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?p={encoded}&n=50"
-        res = requests.get(url, impersonate="chrome120", timeout=15)
+        res = http_get(url, timeout=15)
         if res.status_code != 200: return None
         soup = BeautifulSoup(res.text, "html.parser")
         product_items = soup.find_all("li", class_="Product")
@@ -164,7 +203,7 @@ def scrape_yahuoku_active(raw_keyword):
         keyword = optimize_search_keyword(raw_keyword)
         encoded = urllib.parse.quote(keyword)
         url = f"https://auctions.yahoo.co.jp/search/search?p={encoded}&n=50"
-        res = requests.get(url, impersonate="chrome120", timeout=15)
+        res = http_get(url, timeout=15)
         if res.status_code != 200: return []
         soup = BeautifulSoup(res.text, "html.parser")
         product_items = soup.find_all("li", class_="Product")
@@ -195,7 +234,7 @@ def scrape_mercari_prices(raw_keyword: str):
         keyword = optimize_search_keyword(raw_keyword)
         encoded = urllib.parse.quote(keyword)
         url = f"https://jp.mercari.com/search?keyword={encoded}&status=on_sale&order=price_asc"
-        res = requests.get(url, impersonate="chrome120", timeout=15)
+        res = http_get(url, timeout=15)
         if res.status_code != 200: return None
         soup = BeautifulSoup(res.text, "html.parser")
         items_fetched = []
@@ -349,7 +388,7 @@ def api_keyword_research():
         # 1. Yahooサジェスト取得
         web_kws = []
         try:
-            res = requests.get(
+            res = http_get(
                 f"https://sugg.search.yahoo.co.jp/sg/?output=fxjson&command={urllib.parse.quote(seed)}",
                 timeout=5
             )
@@ -429,6 +468,8 @@ def api_recs():
 @login_required
 def api_test_notify():
     try:
+        if not line_bot_api:
+            return jsonify({"error": "LINE Bot SDKが初期化されていません"}), 503
         uid = request.user["uid"]
         snap = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("settings").document("line").get()
         if not snap.exists(): return jsonify({"error": "LINE IDが未設定です"}), 400
