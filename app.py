@@ -4,7 +4,6 @@ import logging
 import re
 import urllib.parse
 import unicodedata
-from typing import Optional
 
 # --- ヤフオクスクレイピング用 ---
 from bs4 import BeautifulSoup
@@ -80,23 +79,13 @@ except Exception as e:
 
 
 # ==========================
-# Azure 初期化（エラーでクラッシュしないように保護）
+# Azure 初期化
 # ==========================
-project_client = None
-agent = None
-
-try:
-    if AZURE_PROJECT_ENDPOINT and AGENT_ID:
-        project_client = AIProjectClient(
-            credential=DefaultAzureCredential(), endpoint=AZURE_PROJECT_ENDPOINT
-        )
-        agent = project_client.agents.get_agent(AGENT_ID)
-        logger.info("✅ Azure AI Project 連携成功")
-    else:
-        logger.warning("⚠️ Azure関連の環境変数 (AZURE_PROJECT_ENDPOINT, AGENT_ID) が未設定です")
-except Exception as e:
-    logger.error(f"❌ Azure初期化エラー: {e}")
-    logger.warning("⚠️ Azure認証情報が不足しているため、AI機能は一時的に無効化されます")
+# DefaultAzureCredentialはローカル環境では Azure CLI 等でのログインが必要です
+project_client = AIProjectClient(
+    credential=DefaultAzureCredential(), endpoint=AZURE_PROJECT_ENDPOINT
+)
+agent = project_client.agents.get_agent(AGENT_ID)
 
 
 # ==========================
@@ -445,6 +434,26 @@ def api_watchlist_csv():
     })
 
 
+# ======================================================================
+# ヤフオク検索キーワード最適化
+# ======================================================================
+def optimize_search_keyword(raw_keyword):
+    """
+    ユーザーの入力をヤフオクでヒットしやすい「あいまい検索」用に最適化する
+    """
+    # 1. 全角英数字を半角に統一（例：ＣＳＭ ➔ CSM）
+    keyword = unicodedata.normalize('NFKC', raw_keyword)
+    
+    # 2. 英語/数字と日本語の境界に自動でスペースを入れる（例：CSMファイズギア ➔ CSM ファイズギア）
+    keyword = re.sub(r'([a-zA-Z0-9])([^\x01-\x7E])', r'\1 \2', keyword)
+    keyword = re.sub(r'([^\x01-\x7E])([a-zA-Z0-9])', r'\1 \2', keyword)
+    
+    # 3. 余分なスペースを1つにまとめる
+    keyword = re.sub(r'\s+', ' ', keyword).strip()
+    
+    return keyword
+
+
 # =======================================================================================
 # ヤフオク検索キーワードリサーチャー（Webサジェスト取得）
 # =======================================================================================
@@ -455,15 +464,15 @@ def fetch_web_keyword_suggestions(seed: str, max_items: int = 15) -> list:
     """
     if not seed or not seed.strip():
         return []
-    seed = seed.strip()[:50]
+    seed = seed.strip()[:50]  # 長すぎる入力は切り詰め
     try:
         encoded = urllib.parse.quote(seed)
         url = f"https://sugg.search.yahoo.co.jp/sg/?output=fxjson&command={encoded}&ei=utf-8"
         res = requests.get(url, impersonate="chrome120", timeout=8)
         if res.status_code != 200:
-            logger.warning(f"⚠️ Webサジェストステータス異常: {res.status_code}")
             return []
         text = res.text.strip()
+        # JSONP の callback を除去して JSON としてパース (window.yahoo.sug(...) 形式)
         match = re.search(r"\(\s*(\{.*\})\s*\)", text, re.DOTALL)
         if not match:
             return []
@@ -522,150 +531,6 @@ def fetch_ai_keyword_suggestions(seed: str, max_items: int = 15) -> list:
         return []
 
 
-def fetch_ai_profit_keyword_suggestions(seed: str, max_items: int = 15) -> list:
-    """
-    シードキーワードを元に「現在の日本で稼ぎやすい・需要が高い・利益が出やすい」
-    キーワード・商品候補を Azure AI に依頼し、JSON配列で返す。
-    """
-    if not seed or not seed.strip():
-        return []
-    seed = seed.strip()[:80]
-    try:
-        thread = project_client.agents.threads.create()
-        prompt = f"""あなたは日本のフリマ・オークション（ヤフオク・メルカリ）やせどりに精通したプロのリサーチャーです。
-ユーザーは「{seed}」というキーワード・ジャンルを元に、今の日本で「稼ぎやすい」キーワード・商品の候補を知りたいと考えています。
-
-以下の観点を重視して、現在の日本市場で需要が高く・利益が出やすい・転売・せどりに向いたキーワードまたは商品名を{max_items}個以内で挙げてください。
-- 再販・限定品でプレミアがつきやすいもの
-- 直近のトレンドやブームで検索・成約が増えているもの
-- 中古でも価値が保たれやすいブランド・シリーズ・型番
-- 仕入れと販売の価格差が出やすいカテゴリ
-
-「現在の」日本市場を前提とし、具体的な検索キーワード・商品名の形で出力してください。
-必ず以下の形式のみで出力してください（Markdownの```や説明文は不要）。JSON配列のみ:
-["キーワードまたは商品名1", "キーワードまたは商品名2", ...]
-"""
-        project_client.agents.messages.create(
-            thread_id=thread.id, role="user", content=prompt
-        )
-        project_client.agents.runs.create_and_process(
-            thread_id=thread.id, agent_id=agent.id
-        )
-        messages = project_client.agents.messages.list(
-            thread_id=thread.id, order=ListSortOrder.DESCENDING
-        )
-        for m in messages:
-            if m.role == "assistant" and m.text_messages:
-                text = m.text_messages[0].text.value
-                match = re.search(r"\[[\s\S]*?\]", text)
-                if match:
-                    arr = json.loads(match.group())
-                    if isinstance(arr, list):
-                        return [str(x).strip() for x in arr if x][:max_items]
-        return []
-    except Exception as e:
-        logger.warning(f"⚠️ AI稼ぎやすい候補取得エラー: {e}")
-        return []
-
-
-def fetch_ai_keywords_by_genre(seed: str, max_genres: int = 6, max_per_genre: int = 8) -> dict:
-    """
-    Azure AI に「シードキーワードに関連する商品ジャンルを挙げ、ジャンルごとに
-    ヤフオクで検索するとヒットしそうなキーワード」を依頼し、
-    { "ジャンル名": ["キーワード1", ...], ... } の形で返す。
-    """
-    if not seed or not seed.strip():
-        return {}
-    seed = seed.strip()[:80]
-    try:
-        thread = project_client.agents.threads.create()
-        prompt = f"""あなたはヤフオク・フリマに詳しいリサーチャーです。
-ユーザーが「{seed}」というキーワードでヤフオクのキーワードリサーチをしています。
-このキーワードに関連する「商品ジャンル」を{max_genres}個以内で挙げ、各ジャンルごとに
-ヤフオクで実際に検索するとヒットしそうなキーワードを{max_per_genre}個ずつ挙げてください。
-
-例: シードが「ガンプラ」なら、ジャンルとして「HG」「RG」「MG」「PG」「SDガンダム」など、
-シードが「仮面ライダー」なら「CSM」「DX」「変身ベルト」「フィギュア」など。
-
-必ず以下の形式のみで出力してください。JSONオブジェクトのみ（Markdownの```や説明は不要）:
-{{"ジャンル名1": ["キーワード1", "キーワード2", ...], "ジャンル名2": [...], ...}}
-"""
-        project_client.agents.messages.create(
-            thread_id=thread.id, role="user", content=prompt
-        )
-        project_client.agents.runs.create_and_process(
-            thread_id=thread.id, agent_id=agent.id
-        )
-        messages = project_client.agents.messages.list(
-            thread_id=thread.id, order=ListSortOrder.DESCENDING
-        )
-        for m in messages:
-            if m.role == "assistant" and m.text_messages:
-                text = m.text_messages[0].text.value
-                match = re.search(r"\{[\s\S]*\}", text)
-                if match:
-                    obj = json.loads(match.group())
-                    if isinstance(obj, dict):
-                        out = {}
-                        for genre, kws in obj.items():
-                            if genre and isinstance(kws, list):
-                                out[str(genre).strip()] = [
-                                    str(x).strip() for x in kws if x
-                                ][:max_per_genre]
-                        return out
-        return {}
-    except Exception as e:
-        logger.warning(f"⚠️ AIジャンル別キーワード取得エラー: {e}")
-        return {}
-
-
-# =======================================================================================
-# ★ 今狙いやすいシードキーワード候補を提案
-# =======================================================================================
-def fetch_ai_seed_keyword_suggestions(max_items: int = 20) -> list:
-    """
-    現在の日本のフリマ・オークション市場で「今まさに旬」な
-    シードキーワード候補をAIが提案する。
-    ジャンル・カテゴリ単位で幅広く返す。
-    """
-    try:
-        thread = project_client.agents.threads.create()
-        prompt = f"""あなたは日本のヤフオク・メルカリ・フリマに精通したプロのせどりリサーチャーです。
-「今の日本」（2024〜2025年）で、ヤフオク・メルカリにおいて需要が高く・転売利益が出やすい・検索されやすい
-「シードキーワード（ジャンル・カテゴリ・シリーズ名）」を{max_items}個以内で提案してください。
-
-以下の観点を重視してください：
-- 直近でブームや再販・復刻があったもの
-- 限定品・プレミアがつきやすいシリーズ
-- 中古でも価値が高い・需要が継続しているカテゴリ
-- ゲーム・フィギュア・ホビー・家電・ブランドなどジャンルを横断してOK
-
-必ず以下の形式のみで出力してください（Markdownの```や説明文は不要）。JSON配列のみ:
-["シードキーワード1", "シードキーワード2", ...]
-"""
-        project_client.agents.messages.create(
-            thread_id=thread.id, role="user", content=prompt
-        )
-        project_client.agents.runs.create_and_process(
-            thread_id=thread.id, agent_id=agent.id
-        )
-        messages = project_client.agents.messages.list(
-            thread_id=thread.id, order=ListSortOrder.DESCENDING
-        )
-        for m in messages:
-            if m.role == "assistant" and m.text_messages:
-                text = m.text_messages[0].text.value
-                match = re.search(r"\[[\s\S]*?\]", text)
-                if match:
-                    arr = json.loads(match.group())
-                    if isinstance(arr, list):
-                        return [str(x).strip() for x in arr if x][:max_items]
-        return []
-    except Exception as e:
-        logger.warning(f"⚠️ AIシードキーワード取得エラー: {e}")
-        return []
-
-
 # =======================================================================================
 # API: ヤフオク検索キーワードリサーチャー
 # =======================================================================================
@@ -673,9 +538,9 @@ def fetch_ai_seed_keyword_suggestions(max_items: int = 20) -> list:
 @login_required
 def api_keyword_research():
     """
-    シードキーワードを元に、Webサジェスト・AI・ジャンル別AIのキーワード候補を取得する。
-    Body: { "seed": "CSM" }, { "seed": "CSM", "by_genre": true }, { "sources": ["web", "ai"] }
-    レスポンス: { "web": [...], "ai": [...], "by_genre": { "ジャンル名": ["kw",...], ... } }
+    シードキーワードを元に、WebサジェストとAzure AIの両方からキーワード候補を取得する。
+    Body: { "seed": "CSM" } または { "seed": "CSM", "sources": ["web", "ai"] }
+    レスポンス: { "web": ["...", ...], "ai": ["...", ...] }
     """
     data = request.get_json() or {}
     seed = (data.get("seed") or "").strip()
@@ -684,193 +549,16 @@ def api_keyword_research():
     sources = data.get("sources") or ["web", "ai"]
     if not isinstance(sources, list):
         sources = ["web", "ai"]
-    by_genre = bool(data.get("by_genre"))
-    focus_profit = bool(data.get("focus_profit"))
     max_items = min(int(data.get("max_items", 15)), 30)
-    max_per_genre = min(int(data.get("max_per_genre", 8)), 15)
 
-    result = {"web": [], "ai": [], "by_genre": {}, "profit": []}
+    result = {"web": [], "ai": []}
     if "web" in sources:
         result["web"] = fetch_web_keyword_suggestions(seed, max_items=max_items)
-    if "ai" in sources and not by_genre:
+    if "ai" in sources:
         result["ai"] = fetch_ai_keyword_suggestions(seed, max_items=max_items)
-    if by_genre:
-        result["by_genre"] = fetch_ai_keywords_by_genre(
-            seed, max_genres=6, max_per_genre=max_per_genre
-        )
-        if "ai" not in result or not result["ai"]:
-            result["ai"] = []
-    if focus_profit:
-        result["profit"] = fetch_ai_profit_keyword_suggestions(seed, max_items=max_items)
 
     return jsonify(result)
 
-
-# =======================================================================================
-# ★ API: 今狙いやすいシードキーワード候補を返す
-# =======================================================================================
-@app.route("/api/keyword-research/seeds", methods=["POST"])
-@login_required
-def api_keyword_research_seeds():
-    """
-    今狙いやすいシードキーワード候補を返す。
-    Body: {} または { "max_items": 20 }
-    """
-    data = request.get_json() or {}
-    max_items = min(int(data.get("max_items", 20)), 30)
-    seeds = fetch_ai_seed_keyword_suggestions(max_items=max_items)
-    return jsonify({"seeds": seeds})
-
-
-# =======================================================================================
-# 電脳せどり 利ザヤチェッカー (ヤフオク相場 × 仕入れ値)
-# =======================================================================================
-def _calc_profit_summary(
-    buy_price: int, sell_price: int, shipping_sell: int, shipping_buy: int
-) -> dict:
-    """
-    単一の売値に対する利益サマリを計算する。
-    """
-    buy_price = max(int(buy_price), 0)
-    sell_price = max(int(sell_price), 0)
-    shipping_sell = max(int(shipping_sell), 0)
-    shipping_buy = max(int(shipping_buy), 0)
-
-    # ヤフオク落札手数料 8.8%
-    yahoo_fee = int(round(sell_price * 0.088))
-    total_cost = buy_price + shipping_sell + shipping_buy + yahoo_fee
-    profit = sell_price - total_cost
-
-    roi = 0
-    if buy_price > 0:
-        roi = int(round(profit / buy_price * 100))
-
-    profit_rate = 0
-    if sell_price > 0:
-        profit_rate = int(round(profit / sell_price * 100))
-
-    # 簡易判定ロジック
-    if profit <= 0 or roi < 5:
-        verdict = "SKIP"
-        verdict_label = "見送り推奨"
-    elif profit >= 3000 and roi >= 30:
-        verdict = "BUY"
-        verdict_label = "積極仕入れOK"
-    else:
-        verdict = "CONSIDER"
-        verdict_label = "条件付きで検討"
-
-    return {
-        "buy_price": buy_price,
-        "sell_price": sell_price,
-        "shipping_sell": shipping_sell,
-        "shipping_buy": shipping_buy,
-        "yahoo_fee": yahoo_fee,
-        "total_cost": total_cost,
-        "profit": profit,
-        "roi": roi,
-        "profit_rate": profit_rate,
-        "verdict": verdict,
-        "verdict_label": verdict_label,
-    }
-
-
-# @app.route("/api/profit-check", methods=["POST"])
-# @login_required
-# def api_profit_check():
-#     """
-#     電脳せどり向け利ザヤ計算API。
-#     - ヤフオク落札相場 (avg / max) を取得
-#     - 仕入れ値・送料・手数料を考慮した純利益/ROI/利益率を計算
-
-#     Body:
-#       {
-#         "keyword": "...",              # 必須
-#         "shipping_sell": 600,         # 任意 (デフォルト600)
-#         "shipping_buy": 600,          # 任意 (デフォルト600)
-#         "manual_buy_price": 12000     # 必須（現状メルカリ自動取得は未実装）
-#       }
-#     """
-#     data = request.get_json() or {}
-#     keyword = (data.get("keyword") or "").strip()
-#     if not keyword:
-#         return jsonify({"error": "キーワードが指定されていません"}), 400
-
-#     manual_buy_price = data.get("manual_buy_price")
-#     if manual_buy_price is None:
-#         return jsonify({"error": "仕入れ値(手動入力)を入力してください"}), 400
-
-#     try:
-#         buy_price = int(manual_buy_price)
-#     except (TypeError, ValueError):
-#         return jsonify({"error": "仕入れ値(手動入力)が不正です"}), 400
-
-#     shipping_sell = int(data.get("shipping_sell", 600) or 600)
-#     shipping_buy = int(data.get("shipping_buy", 600) or 600)
-
-#     # ヤフオク落札相場を取得（既存ロジックを再利用）
-#     market = scrape_yahuoku_closed(keyword)
-#     if not market:
-#         return (
-#             jsonify(
-#                 {
-#                     "error": "ヤフオクの落札相場データが見つかりませんでした。キーワードを調整してください。"
-#                 }
-#             ),
-#             404,
-#         )
-
-#     # 文字列 "12,345" -> 12345 へ変換
-#     try:
-#         avg_price = int(str(market["avg_price"]).replace(",", ""))
-#         max_price = int(str(market["max_price"]).replace(",", ""))
-#     except Exception:
-#         return jsonify({"error": "相場データの解析に失敗しました"}), 500
-
-#     profit_avg = _calc_profit_summary(
-#         buy_price=buy_price,
-#         sell_price=avg_price,
-#         shipping_sell=shipping_sell,
-#         shipping_buy=shipping_buy,
-#     )
-#     profit_max = _calc_profit_summary(
-#         buy_price=buy_price,
-#         sell_price=max_price,
-#         shipping_sell=shipping_sell,
-#         shipping_buy=shipping_buy,
-#     )
-
-#     # メルカリ自動取得は未実装のため、フロント側で「手動仕入れ値を使用」と表示させる
-#     mercari_data = None
-
-#     return jsonify(
-#         {
-#             "keyword": keyword,
-#             "profit_avg": profit_avg,
-#             "profit_max": profit_max,
-#             "mercari_data": mercari_data,
-#         }
-#     )
-
-
-# # ======================================================================
-# # ヤフオク検索キーワード最適化
-# # ======================================================================
-# def optimize_search_keyword(raw_keyword):
-#     """
-#     ユーザーの入力をヤフオクでヒットしやすい「あいまい検索」用に最適化する
-#     """
-#     # 1. 全角英数字を半角に統一（例：ＣＳＭ ➔ CSM）
-#     keyword = unicodedata.normalize('NFKC', raw_keyword)
-    
-#     # 2. 英語/数字と日本語の境界に自動でスペースを入れる（例：CSMファイズギア ➔ CSM ファイズギア）
-#     keyword = re.sub(r'([a-zA-Z0-9])([^\x01-\x7E])', r'\1 \2', keyword)
-#     keyword = re.sub(r'([^\x01-\x7E])([a-zA-Z0-9])', r'\1 \2', keyword)
-    
-#     # 3. 余分なスペースを1つにまとめる
-#     keyword = re.sub(r'\s+', ' ', keyword).strip()
-    
-#     return keyword
 
 # =======================================================================================
 # ヤフオク高速落札相場取得
@@ -1037,213 +725,6 @@ def api_auctions_active():
         return jsonify({"error": "現在開催中のオークションは見つかりませんでした"}), 404
 
     return jsonify({"items": results})
-
-# ==============================================================================================
-# メルカリ出品価格スクレイピング
-# ==============================================================================================
-def scrape_mercari_prices(raw_keyword: str, max_items: int = 30) -> Optional[dict]:
-    """
-    メルカリの検索結果から現在の出品価格一覧を取得する。
-    販売中の商品のみ対象。
-    """
-    try:
-        keyword = optimize_search_keyword(raw_keyword)
-        encoded = urllib.parse.quote(keyword)
-        # status=on_sale で販売中のみ、order=price_asc で安い順
-        url = (
-            f"https://jp.mercari.com/search"
-            f"?keyword={encoded}&status=on_sale&order=price_asc"
-        )
-        res = requests.get(url, impersonate="chrome120", timeout=15)
-        if res.status_code != 200:
-            logger.warning(f"⚠️ メルカリアクセス失敗: {res.status_code}")
-            return None
-
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        # メルカリのSSR HTMLから価格を抽出
-        # data-testid="price" または aria-label に価格が入っている
-        prices_raw = []
-        items_data = []
-
-        # JSON-LDからデータ取得を試みる
-        script_tags = soup.find_all("script", type="application/ld+json")
-        for tag in script_tags:
-            try:
-                obj = json.loads(tag.string or "")
-                if isinstance(obj, list):
-                    for item in obj:
-                        if item.get("@type") == "Product":
-                            offer = item.get("offers", {})
-                            price = offer.get("price")
-                            if price:
-                                prices_raw.append(int(float(price)))
-                                items_data.append({
-                                    "title": item.get("name", ""),
-                                    "price": int(float(price)),
-                                    "url": item.get("url", ""),
-                                    "image": (item.get("image") or [""])[0] if isinstance(item.get("image"), list) else item.get("image", ""),
-                                })
-            except Exception:
-                continue
-
-        # JSON-LDで取れなかった場合はHTMLパターンでフォールバック
-        if not prices_raw:
-            price_tags = soup.find_all(attrs={"data-testid": "price"})
-            for tag in price_tags[:max_items]:
-                try:
-                    price_str = re.sub(r"\D", "", tag.text)
-                    if price_str:
-                        prices_raw.append(int(price_str))
-                except Exception:
-                    continue
-
-        if not prices_raw:
-            return None
-
-        prices_raw = sorted(prices_raw)[:max_items]
-        return {
-            "min_price": prices_raw[0],
-            "avg_price": sum(prices_raw) // len(prices_raw),
-            "median_price": prices_raw[len(prices_raw) // 2],
-            "sample_count": len(prices_raw),
-            "items": items_data[:max_items],
-        }
-
-    except Exception as e:
-        logger.error(f"❌ メルカリスクレイピングエラー: {e}")
-        return None
-
-
-# ==============================================================================================
-# 利ザヤ計算ロジック
-# ==============================================================================================
-def calc_profit(
-    sell_price: int,        # ヤフオク落札想定価格
-    buy_price: int,         # メルカリ仕入れ価格
-    yahoo_fee_rate: float = 0.088,   # ヤフオク落札システム手数料 8.8%
-    shipping_sell: int = 600,        # 出品側（ヤフオク）送料
-    shipping_buy: int = 600,         # 仕入れ側（メルカリ）送料
-) -> dict:
-    """
-    純利益・ROI・利益率を計算して返す。
-    """
-    yahoo_fee = int(sell_price * yahoo_fee_rate)
-    total_cost = buy_price + shipping_buy + shipping_sell + yahoo_fee
-    profit = sell_price - total_cost
-    roi = round((profit / total_cost) * 100, 1) if total_cost > 0 else 0
-    profit_rate = round((profit / sell_price) * 100, 1) if sell_price > 0 else 0
-
-    if profit >= 3000 and roi >= 20:
-        verdict = "BUY"        # 積極的に買い
-        verdict_label = "✅ 買い"
-        verdict_color = "green"
-    elif profit >= 1000 and roi >= 10:
-        verdict = "CONSIDER"   # 要検討
-        verdict_label = "🟡 要検討"
-        verdict_color = "yellow"
-    else:
-        verdict = "PASS"       # 見送り
-        verdict_label = "❌ 見送り"
-        verdict_color = "red"
-
-    return {
-        "sell_price": sell_price,
-        "buy_price": buy_price,
-        "yahoo_fee": yahoo_fee,
-        "shipping_sell": shipping_sell,
-        "shipping_buy": shipping_buy,
-        "total_cost": total_cost,
-        "profit": profit,
-        "roi": roi,
-        "profit_rate": profit_rate,
-        "verdict": verdict,
-        "verdict_label": verdict_label,
-        "verdict_color": verdict_color,
-    }
-
-
-# ==============================================================================================
-# API: 電脳せどり利ザヤチェック（ヤフオク相場 vs メルカリ仕入れ）
-# ==============================================================================================
-@app.route("/api/profit-check", methods=["POST"])
-@login_required
-def api_profit_check():
-    """
-    キーワードでヤフオク落札相場とメルカリ出品価格を同時取得し、
-    利ザヤ・ROI・純利益を計算して返す。
-
-    Body:
-    {
-        "keyword": "CSM ファイズギア",
-        "shipping_sell": 600,    // ヤフオク送料（省略可）
-        "shipping_buy": 600,     // メルカリ購入時送料（省略可）
-        "manual_buy_price": null // 手動仕入れ値（省略時はメルカリ最安値を使用）
-    }
-    """
-    data = request.get_json() or {}
-    keyword = (data.get("keyword") or "").strip()
-    if not keyword:
-        return jsonify({"error": "キーワードを入力してください"}), 400
-
-    shipping_sell = int(data.get("shipping_sell") or 600)
-    shipping_buy  = int(data.get("shipping_buy")  or 600)
-    manual_buy    = data.get("manual_buy_price")
-
-    logger.info(f"💹 利ザヤチェック開始: {keyword}")
-
-    # 1. ヤフオク落札相場
-    yahoo_data = scrape_yahuoku_closed(keyword)
-    if not yahoo_data:
-        return jsonify({"error": "ヤフオク相場データが取得できませんでした"}), 404
-
-    # 2. メルカリ出品価格（手動入力が優先）
-    mercari_data = None
-    buy_price_used = None
-
-    if manual_buy is not None:
-        buy_price_used = int(manual_buy)
-    else:
-        mercari_data = scrape_mercari_prices(keyword)
-        if not mercari_data:
-            return jsonify({
-                "error": "メルカリ価格が取得できませんでした。手動で仕入れ値を入力してください。",
-                "yahoo_data": yahoo_data,
-            }), 404
-        buy_price_used = mercari_data["min_price"]
-
-    # 3. 利ザヤ計算（ヤフオク平均落札価格を売値として使用）
-    avg_sell = int(str(yahoo_data["avg_price"]).replace(",", ""))
-
-    profit_avg = calc_profit(
-        sell_price=avg_sell,
-        buy_price=buy_price_used,
-        shipping_sell=shipping_sell,
-        shipping_buy=shipping_buy,
-    )
-
-    # 4. 最高値ベースの計算も参考として返す
-    max_sell = int(str(yahoo_data["max_price"]).replace(",", ""))
-    profit_max = calc_profit(
-        sell_price=max_sell,
-        buy_price=buy_price_used,
-        shipping_sell=shipping_sell,
-        shipping_buy=shipping_buy,
-    )
-
-    return jsonify({
-        "keyword": keyword,
-        "yahoo_data": yahoo_data,
-        "mercari_data": mercari_data,
-        "buy_price_used": buy_price_used,
-        "profit_avg": profit_avg,   # 平均落札額ベース（メイン）
-        "profit_max": profit_max,   # 最高値ベース（参考）
-        "settings": {
-            "shipping_sell": shipping_sell,
-            "shipping_buy": shipping_buy,
-        }
-    })
-
 
 # ==============================================================================================
 # AIせどり鑑定士 (ヤフオク相場 ➔ AI判定) API
