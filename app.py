@@ -453,6 +453,113 @@ def optimize_search_keyword(raw_keyword):
     
     return keyword
 
+
+# =======================================================================================
+# ヤフオク検索キーワードリサーチャー（Webサジェスト取得）
+# =======================================================================================
+def fetch_web_keyword_suggestions(seed: str, max_items: int = 15) -> list:
+    """
+    ネット上のサジェストAPIからキーワード候補を取得する。
+    Yahoo! JAPAN のサジェスト（JSONP）を試し、失敗時は空リストを返す。
+    """
+    if not seed or not seed.strip():
+        return []
+    seed = seed.strip()[:50]  # 長すぎる入力は切り詰め
+    try:
+        encoded = urllib.parse.quote(seed)
+        url = f"https://sugg.search.yahoo.co.jp/sg/?output=fxjson&command={encoded}&ei=utf-8"
+        res = requests.get(url, impersonate="chrome120", timeout=8)
+        if res.status_code != 200:
+            return []
+        text = res.text.strip()
+        # JSONP の callback を除去して JSON としてパース (window.yahoo.sug(...) 形式)
+        match = re.search(r"\(\s*(\{.*\})\s*\)", text, re.DOTALL)
+        if not match:
+            return []
+        data = json.loads(match.group(1))
+        results = []
+        try:
+            for r in data.get("ResultSet", {}).get("Result", [])[:max_items]:
+                kw = (r.get("Key") or r.get("key") or "").strip()
+                if kw and kw not in results:
+                    results.append(kw)
+        except (TypeError, KeyError):
+            pass
+        return results
+    except Exception as e:
+        logger.warning(f"⚠️ Webサジェスト取得エラー: {e}")
+        return []
+
+
+def fetch_ai_keyword_suggestions(seed: str, max_items: int = 15) -> list:
+    """
+    Azure AI Agent に「ヤフオクで検索するとヒットしそうな関連キーワード」を依頼し、
+    JSON配列で返却されたキーワード候補のリストを返す。
+    """
+    if not seed or not seed.strip():
+        return []
+    seed = seed.strip()[:80]
+    try:
+        thread = project_client.agents.threads.create()
+        prompt = f"""あなたはヤフオク・メルカリなどのフリマ・オークションに詳しいリサーチャーです。
+ユーザーが「{seed}」というキーワードでヤフオクのキーワードリサーチをしています。
+このキーワードに関連し、ヤフオクで実際に検索するとヒットしそうな「検索キーワード候補」を{max_items}個以内で挙げてください。
+- 商品名・型番・略称・ジャンル・状態（中古・未使用など）のバリエーションを含めるとよいです。
+- 必ず以下の形式のみで出力してください（Markdownの```や説明文は不要）。JSON配列のみ:
+["キーワード1", "キーワード2", ...]
+"""
+        project_client.agents.messages.create(
+            thread_id=thread.id, role="user", content=prompt
+        )
+        project_client.agents.runs.create_and_process(
+            thread_id=thread.id, agent_id=agent.id
+        )
+        messages = project_client.agents.messages.list(
+            thread_id=thread.id, order=ListSortOrder.DESCENDING
+        )
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                text = m.text_messages[0].text.value
+                match = re.search(r"\[[\s\S]*?\]", text)
+                if match:
+                    arr = json.loads(match.group())
+                    if isinstance(arr, list):
+                        return [str(x).strip() for x in arr if x][:max_items]
+        return []
+    except Exception as e:
+        logger.warning(f"⚠️ AIキーワード取得エラー: {e}")
+        return []
+
+
+# =======================================================================================
+# API: ヤフオク検索キーワードリサーチャー
+# =======================================================================================
+@app.route("/api/keyword-research", methods=["POST"])
+@login_required
+def api_keyword_research():
+    """
+    シードキーワードを元に、WebサジェストとAzure AIの両方からキーワード候補を取得する。
+    Body: { "seed": "CSM" } または { "seed": "CSM", "sources": ["web", "ai"] }
+    レスポンス: { "web": ["...", ...], "ai": ["...", ...] }
+    """
+    data = request.get_json() or {}
+    seed = (data.get("seed") or "").strip()
+    if not seed:
+        return jsonify({"error": "シードキーワード(seed)を指定してください"}), 400
+    sources = data.get("sources") or ["web", "ai"]
+    if not isinstance(sources, list):
+        sources = ["web", "ai"]
+    max_items = min(int(data.get("max_items", 15)), 30)
+
+    result = {"web": [], "ai": []}
+    if "web" in sources:
+        result["web"] = fetch_web_keyword_suggestions(seed, max_items=max_items)
+    if "ai" in sources:
+        result["ai"] = fetch_ai_keyword_suggestions(seed, max_items=max_items)
+
+    return jsonify(result)
+
+
 # =======================================================================================
 # ヤフオク高速落札相場取得
 # =======================================================================================
