@@ -137,7 +137,7 @@
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
               <div class="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
               <h2 class="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-2"><i class="fas fa-key mr-1"></i> ヤフオク検索キーワードリサーチャー</h2>
-              <p class="text-[11px] text-slate-400 mb-6">シードキーワードを入力すると、ネット上のサジェストとAzure AIから関連キーワード候補を取得します。候補をクリックして「開催中追跡」や「相場鑑定」にそのまま使えます。</p>
+              <p class="text-[11px] text-slate-400 mb-4">シードキーワードを入力すると、関連キーワード候補を取得します。<strong class="text-amber-400/90">「稼ぎやすさ・トレンド重視」</strong>をオンにすると、<strong>現在の日本で需要が高く・利益が出やすい</strong>キーワード・商品を優先して候補に出します。</p>
               <div class="flex flex-col md:flex-row gap-3 relative z-10">
                   <div class="flex-1 relative">
                       <input id="keyword-seed-input" type="text" placeholder="例: CSM ファイズギア、ガンプラ、仮面ライダー" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-cyan-500/50 transition-colors placeholder:text-slate-600">
@@ -149,14 +149,34 @@
                       <i class="fas fa-search"></i> 候補を取得
                   </button>
               </div>
-              <div id="keyword-research-result" class="hidden mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div class="bg-slate-900/50 border border-slate-600 rounded-xl p-4">
-                      <h3 class="text-[11px] font-bold text-slate-400 mb-2"><i class="fas fa-globe mr-1"></i> Webサジェスト候補</h3>
-                      <ul id="keyword-web-list" class="flex flex-wrap gap-2"></ul>
+              <div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 relative z-10">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" id="keyword-focus-profit-checkbox" class="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-amber-500/50">
+                      <span class="text-[11px] text-slate-300"><i class="fas fa-yen-sign text-amber-400/80 mr-1"></i>稼ぎやすさ・トレンド重視（今の日本で需要が高い候補を優先）</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" id="keyword-by-genre-checkbox" class="rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500/50">
+                      <span class="text-[11px] text-slate-400">ジャンル別に表示</span>
+                  </label>
+              </div>
+              <div id="keyword-research-result" class="hidden mt-6 space-y-6">
+                  <div id="keyword-profit-section" class="hidden bg-gradient-to-r from-amber-900/20 to-amber-800/10 border border-amber-500/30 rounded-xl p-4">
+                      <h3 class="text-[11px] font-bold text-amber-400 mb-2"><i class="fas fa-yen-sign mr-1"></i> 稼ぎやすい候補（現在の日本で需要が高い・利益が出やすい）</h3>
+                      <ul id="keyword-profit-list" class="flex flex-wrap gap-2"></ul>
                   </div>
-                  <div class="bg-slate-900/50 border border-cyan-500/20 rounded-xl p-4">
-                      <h3 class="text-[11px] font-bold text-cyan-400 mb-2"><i class="fas fa-robot mr-1"></i> AI候補</h3>
-                      <ul id="keyword-ai-list" class="flex flex-wrap gap-2"></ul>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="keyword-flat-section">
+                      <div class="bg-slate-900/50 border border-slate-600 rounded-xl p-4">
+                          <h3 class="text-[11px] font-bold text-slate-400 mb-2"><i class="fas fa-globe mr-1"></i> Webサジェスト候補</h3>
+                          <ul id="keyword-web-list" class="flex flex-wrap gap-2"></ul>
+                      </div>
+                      <div class="bg-slate-900/50 border border-cyan-500/20 rounded-xl p-4">
+                          <h3 class="text-[11px] font-bold text-cyan-400 mb-2"><i class="fas fa-robot mr-1"></i> AI候補</h3>
+                          <ul id="keyword-ai-list" class="flex flex-wrap gap-2"></ul>
+                      </div>
+                  </div>
+                  <div id="keyword-by-genre-section" class="hidden">
+                      <h3 class="text-[11px] font-bold text-cyan-400 mb-3"><i class="fas fa-layer-group mr-1"></i> ジャンル別キーワード</h3>
+                      <div id="keyword-by-genre-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
                   </div>
               </div>
           </section>
@@ -744,10 +764,17 @@
         // --- キーワードリサーチャー ---
         const keywordSeedInput = document.getElementById("keyword-seed-input");
         const keywordResearchBtn = document.getElementById("keyword-research-btn");
+        const keywordByGenreCheckbox = document.getElementById("keyword-by-genre-checkbox");
+        const keywordFocusProfitCheckbox = document.getElementById("keyword-focus-profit-checkbox");
         const keywordResearchLoader = document.getElementById("keyword-research-loader");
         const keywordResearchResult = document.getElementById("keyword-research-result");
         const keywordWebList = document.getElementById("keyword-web-list");
         const keywordAiList = document.getElementById("keyword-ai-list");
+        const keywordProfitSection = document.getElementById("keyword-profit-section");
+        const keywordProfitList = document.getElementById("keyword-profit-list");
+        const keywordFlatSection = document.getElementById("keyword-flat-section");
+        const keywordByGenreSection = document.getElementById("keyword-by-genre-section");
+        const keywordByGenreList = document.getElementById("keyword-by-genre-list");
 
         function escapeAttr(s) {
             return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
@@ -777,16 +804,30 @@
             keywordResearchResult.classList.add("hidden");
             keywordWebList.innerHTML = "";
             keywordAiList.innerHTML = "";
+            keywordProfitList.innerHTML = "";
+            keywordProfitSection.classList.add("hidden");
+            keywordByGenreList.innerHTML = "";
+            keywordByGenreSection.classList.add("hidden");
 
             try {
                 const idToken = await currentUser.getIdToken();
+                const byGenre = keywordByGenreCheckbox && keywordByGenreCheckbox.checked;
+                const focusProfit = keywordFocusProfitCheckbox && keywordFocusProfitCheckbox.checked;
                 const res = await fetch("/api/keyword-research", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-                    body: JSON.stringify({ seed })
+                    body: JSON.stringify({ seed, by_genre: byGenre, focus_profit: focusProfit })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "取得に失敗しました");
+
+                if ((data.profit || []).length > 0) {
+                    keywordProfitSection.classList.remove("hidden");
+                    data.profit.forEach(kw => {
+                        const li = makeKeywordChip(kw);
+                        keywordProfitList.appendChild(li);
+                    });
+                }
 
                 (data.web || []).forEach(kw => {
                     const li = makeKeywordChip(kw);
@@ -796,6 +837,23 @@
                     const li = makeKeywordChip(kw);
                     keywordAiList.appendChild(li);
                 });
+
+                if (byGenre && data.by_genre && Object.keys(data.by_genre).length > 0) {
+                    keywordByGenreSection.classList.remove("hidden");
+                    Object.entries(data.by_genre).forEach(([genre, kws]) => {
+                        const card = document.createElement("div");
+                        card.className = "bg-slate-900/50 border border-cyan-500/20 rounded-xl p-4";
+                        const ul = document.createElement("ul");
+                        ul.className = "flex flex-wrap gap-2";
+                        (kws || []).forEach(kw => {
+                            const li = makeKeywordChip(kw);
+                            ul.appendChild(li);
+                        });
+                        card.innerHTML = `<h4 class="text-[11px] font-bold text-cyan-400 mb-2 border-b border-cyan-500/20 pb-1">${escapeHtml(genre)}</h4>`;
+                        card.appendChild(ul);
+                        keywordByGenreList.appendChild(card);
+                    });
+                }
 
                 keywordResearchResult.classList.remove("hidden");
             } catch (err) {

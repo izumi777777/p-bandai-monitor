@@ -531,6 +531,104 @@ def fetch_ai_keyword_suggestions(seed: str, max_items: int = 15) -> list:
         return []
 
 
+def fetch_ai_profit_keyword_suggestions(seed: str, max_items: int = 15) -> list:
+    """
+    シードキーワードを元に「現在の日本で稼ぎやすい・需要が高い・利益が出やすい」
+    キーワード・商品候補を Azure AI に依頼し、JSON配列で返す。
+    せどり・転売で狙い目なトレンドや再販ニーズの高いものを優先する。
+    """
+    if not seed or not seed.strip():
+        return []
+    seed = seed.strip()[:80]
+    try:
+        thread = project_client.agents.threads.create()
+        prompt = f"""あなたは日本のフリマ・オークション（ヤフオク・メルカリ）やせどりに精通したプロのリサーチャーです。
+ユーザーは「{seed}」というキーワード・ジャンルを元に、今の日本で「稼ぎやすい」キーワード・商品の候補を知りたいと考えています。
+
+以下の観点を重視して、現在の日本市場で需要が高く・利益が出やすい・転売・せどりに向いたキーワードまたは商品名を{max_items}個以内で挙げてください。
+- 再販・限定品でプレミアがつきやすいもの
+- 直近のトレンドやブームで検索・成約が増えているもの
+- 中古でも価値が保たれやすいブランド・シリーズ・型番
+- 仕入れと販売の価格差が出やすいカテゴリ
+
+「現在の」日本市場を前提とし、具体的な検索キーワード・商品名の形で出力してください。
+必ず以下の形式のみで出力してください（Markdownの```や説明文は不要）。JSON配列のみ:
+["キーワードまたは商品名1", "キーワードまたは商品名2", ...]
+"""
+        project_client.agents.messages.create(
+            thread_id=thread.id, role="user", content=prompt
+        )
+        project_client.agents.runs.create_and_process(
+            thread_id=thread.id, agent_id=agent.id
+        )
+        messages = project_client.agents.messages.list(
+            thread_id=thread.id, order=ListSortOrder.DESCENDING
+        )
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                text = m.text_messages[0].text.value
+                match = re.search(r"\[[\s\S]*?\]", text)
+                if match:
+                    arr = json.loads(match.group())
+                    if isinstance(arr, list):
+                        return [str(x).strip() for x in arr if x][:max_items]
+        return []
+    except Exception as e:
+        logger.warning(f"⚠️ AI稼ぎやすい候補取得エラー: {e}")
+        return []
+
+
+def fetch_ai_keywords_by_genre(seed: str, max_genres: int = 6, max_per_genre: int = 8) -> dict:
+    """
+    Azure AI に「シードキーワードに関連する商品ジャンルを挙げ、ジャンルごとに
+    ヤフオクで検索するとヒットしそうなキーワード」を依頼し、
+    { "ジャンル名": ["キーワード1", ...], ... } の形で返す。
+    """
+    if not seed or not seed.strip():
+        return {}
+    seed = seed.strip()[:80]
+    try:
+        thread = project_client.agents.threads.create()
+        prompt = f"""あなたはヤフオク・フリマに詳しいリサーチャーです。
+ユーザーが「{seed}」というキーワードでヤフオクのキーワードリサーチをしています。
+このキーワードに関連する「商品ジャンル」を{max_genres}個以内で挙げ、各ジャンルごとに
+ヤフオクで実際に検索するとヒットしそうなキーワードを{max_per_genre}個ずつ挙げてください。
+
+例: シードが「ガンプラ」なら、ジャンルとして「HG」「RG」「MG」「PG」「SDガンダム」など、
+シードが「仮面ライダー」なら「CSM」「DX」「変身ベルト」「フィギュア」など。
+
+必ず以下の形式のみで出力してください。JSONオブジェクトのみ（Markdownの```や説明は不要）:
+{{"ジャンル名1": ["キーワード1", "キーワード2", ...], "ジャンル名2": [...], ...}}
+"""
+        project_client.agents.messages.create(
+            thread_id=thread.id, role="user", content=prompt
+        )
+        project_client.agents.runs.create_and_process(
+            thread_id=thread.id, agent_id=agent.id
+        )
+        messages = project_client.agents.messages.list(
+            thread_id=thread.id, order=ListSortOrder.DESCENDING
+        )
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                text = m.text_messages[0].text.value
+                match = re.search(r"\{[\s\S]*\}", text)
+                if match:
+                    obj = json.loads(match.group())
+                    if isinstance(obj, dict):
+                        out = {}
+                        for genre, kws in obj.items():
+                            if genre and isinstance(kws, list):
+                                out[str(genre).strip()] = [
+                                    str(x).strip() for x in kws if x
+                                ][:max_per_genre]
+                        return out
+        return {}
+    except Exception as e:
+        logger.warning(f"⚠️ AIジャンル別キーワード取得エラー: {e}")
+        return {}
+
+
 # =======================================================================================
 # API: ヤフオク検索キーワードリサーチャー
 # =======================================================================================
@@ -538,9 +636,9 @@ def fetch_ai_keyword_suggestions(seed: str, max_items: int = 15) -> list:
 @login_required
 def api_keyword_research():
     """
-    シードキーワードを元に、WebサジェストとAzure AIの両方からキーワード候補を取得する。
-    Body: { "seed": "CSM" } または { "seed": "CSM", "sources": ["web", "ai"] }
-    レスポンス: { "web": ["...", ...], "ai": ["...", ...] }
+    シードキーワードを元に、Webサジェスト・AI・ジャンル別AIのキーワード候補を取得する。
+    Body: { "seed": "CSM" }, { "seed": "CSM", "by_genre": true }, { "sources": ["web", "ai"] }
+    レスポンス: { "web": [...], "ai": [...], "by_genre": { "ジャンル名": ["kw",...], ... } }
     """
     data = request.get_json() or {}
     seed = (data.get("seed") or "").strip()
@@ -549,13 +647,24 @@ def api_keyword_research():
     sources = data.get("sources") or ["web", "ai"]
     if not isinstance(sources, list):
         sources = ["web", "ai"]
+    by_genre = bool(data.get("by_genre"))
+    focus_profit = bool(data.get("focus_profit"))
     max_items = min(int(data.get("max_items", 15)), 30)
+    max_per_genre = min(int(data.get("max_per_genre", 8)), 15)
 
-    result = {"web": [], "ai": []}
+    result = {"web": [], "ai": [], "by_genre": {}, "profit": []}
     if "web" in sources:
         result["web"] = fetch_web_keyword_suggestions(seed, max_items=max_items)
-    if "ai" in sources:
+    if "ai" in sources and not by_genre:
         result["ai"] = fetch_ai_keyword_suggestions(seed, max_items=max_items)
+    if by_genre:
+        result["by_genre"] = fetch_ai_keywords_by_genre(
+            seed, max_genres=6, max_per_genre=max_per_genre
+        )
+        if "ai" not in result or not result["ai"]:
+            result["ai"] = []
+    if focus_profit:
+        result["profit"] = fetch_ai_profit_keyword_suggestions(seed, max_items=max_items)
 
     return jsonify(result)
 
