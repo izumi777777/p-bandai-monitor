@@ -662,7 +662,9 @@
 
             const item = window.currentActiveItems[index];
             const bidsText = item.bids.includes("入札") ? item.bids : `入札${item.bids}件`;
-            const statusLabel = item.buy_now_price ? `即決: ${item.buy_now_price}` : `${bidsText} / 終了:${item.end_time}`;
+            // 一覧画面の終了日時は精度が低く、詳細ページと差異が出るため
+            // 監視リストの初期表示では終了日時は表示せず、ジョブ実行時に詳細ページから取得した値で上書きする
+            const statusLabel = item.buy_now_price ? `即決: ${item.buy_now_price}` : `${bidsText}`;
 
             const payload = {
                 title: item.title,
