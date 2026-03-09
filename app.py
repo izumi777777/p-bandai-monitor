@@ -504,7 +504,9 @@ def api_test_notify():
             return jsonify({"error": "LINE Bot SDKが初期化されていません"}), 503
         uid = request.user["uid"]
         snap = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("settings").document("line").get()
-        if not snap.exists():
+        # Firestore Admin SDK の DocumentSnapshot.exists は「プロパティ(bool)」なので
+        # exists() と呼び出すと 'bool' object is not callable エラーになる点に注意
+        if not snap.exists:
             return jsonify({"error": "LINE IDが未設定です"}), 400
         doc = snap.to_dict() or {}
         line_id = doc.get("lineUserId")
