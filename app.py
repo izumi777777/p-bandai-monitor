@@ -504,8 +504,12 @@ def api_test_notify():
             return jsonify({"error": "LINE Bot SDKが初期化されていません"}), 503
         uid = request.user["uid"]
         snap = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("settings").document("line").get()
-        if not snap.exists(): return jsonify({"error": "LINE IDが未設定です"}), 400
-        line_id = snap.data().get("lineUserId")
+        if not snap.exists():
+            return jsonify({"error": "LINE IDが未設定です"}), 400
+        doc = snap.to_dict() or {}
+        line_id = doc.get("lineUserId")
+        if not line_id:
+            return jsonify({"error": "Firestore上のLINE IDが空です"}), 400
         line_bot_api.push_message(line_id, TextSendMessage(text="✅ システム接続テスト完了\n通知設定は正常です。"))
         return jsonify({"message": "OK"})
     except Exception as e:

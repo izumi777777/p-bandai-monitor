@@ -172,7 +172,7 @@
               </div>
               <div id="active-result" class="hidden mt-6 bg-slate-900/50 border border-purple-500/20 rounded-xl p-5 shadow-inner flex flex-col"></div>
           </section>
-      </div>
+              </div>
 
       <!-- ========== キーワードリサーチ ========== -->
       <div id="view-keyword" class="hidden space-y-8 animate-in fade-in duration-300">
@@ -233,7 +233,7 @@
                       <h3 class="text-[11px] font-bold text-cyan-400 mb-3"><i class="fas fa-layer-group mr-1"></i> ジャンル別キーワード</h3>
                       <div id="keyword-by-genre-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
                   </div>
-              </div>
+                  </div>
           </section>
       </div>
 
@@ -322,7 +322,7 @@
                       </button>
                   </div>
               </div>
-          </section>
+              </section>
       </div>
 
       <!-- プレビューモーダル -->
@@ -363,27 +363,27 @@
         const logoutBtn = document.getElementById("logout-btn");
         const saveLineBtn = document.getElementById("save-line-btn");
         const testLineBtn = document.getElementById("test-line-btn");
-
+        
         // Tab Elements
         const tabScout = document.getElementById("tab-scout");
         const tabActive = document.getElementById("tab-active");
         const tabKeyword = document.getElementById("tab-keyword");
-        const tabYahoo = document.getElementById("tab-yahoo");
+        const tabYahoo = document.getElementById("tab-yahoo"); 
         const tabMonitor = document.getElementById("tab-monitor");
         const tabSettings = document.getElementById("tab-settings");
         const viewScout = document.getElementById("view-scout");
         const viewActive = document.getElementById("view-active");
         const viewKeyword = document.getElementById("view-keyword");
-        const viewYahoo = document.getElementById("view-yahoo");
+        const viewYahoo = document.getElementById("view-yahoo"); 
         const viewMonitor = document.getElementById("view-monitor");
         const viewSettings = document.getElementById("view-settings");
-
+        
         // Watchlist Elements
-        const watchlistMonitor = document.getElementById("watchlist");
-        const watchlistYahoo = document.getElementById("watchlist-yahoo");
+        const watchlistMonitor = document.getElementById("watchlist"); 
+        const watchlistYahoo = document.getElementById("watchlist-yahoo"); 
         const itemCountMonitor = document.getElementById("item-count");
         const itemCountYahoo = document.getElementById("item-count-yahoo");
-
+        
         // Scout Elements
         const scoutInput = document.getElementById("scout-input");
         const scoutBtn = document.getElementById("scout-btn");
@@ -412,8 +412,8 @@
 
         let currentUser = null;
         let currentInspectedData = null;
-        let currentAiRecs = [];
-        window.currentActiveItems = [];
+        let currentAiRecs = []; 
+        window.currentActiveItems = []; 
 
         // --- Tab Switching ---
         function switchTab(tabName) {
@@ -457,7 +457,7 @@
         tabScout.onclick = () => switchTab('scout');
         tabActive.onclick = () => switchTab('active');
         tabKeyword.onclick = () => switchTab('keyword');
-        tabYahoo.onclick = () => switchTab('yahoo');
+        tabYahoo.onclick = () => switchTab('yahoo'); 
         tabSettings.onclick = () => switchTab('settings');
         switchTab('scout');
 
@@ -663,7 +663,7 @@
                             </td>
                         </tr>`).join("");
                 } else {
-                    itemsHtml = `<tr><td colspan="4" class="text-center py-4 text-xs text-slate-500">詳細データが見つかりませんでした</td></tr>`;
+                     itemsHtml = `<tr><td colspan="4" class="text-center py-4 text-xs text-slate-500">詳細データが見つかりませんでした</td></tr>`;
                 }
                 scoutResult.innerHTML = `
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -713,8 +713,8 @@
                     </div>`;
                 scoutResult.classList.remove("hidden");
                 let followUpCount = 0;
-                const maxFollowUps = 2;
-                const currentThreadId = data.thread_id;
+                const maxFollowUps = 2; 
+                const currentThreadId = data.thread_id; 
                 const followupInput = document.getElementById("followup-input");
                 const followupBtn = document.getElementById("followup-btn");
                 const followupHistory = document.getElementById("followup-history");
@@ -1167,7 +1167,7 @@
                 if (!res.ok) throw new Error(data.error);
                 currentInspectedData = { ...data.preview, url };
                 showPreview(currentInspectedData);
-            } catch (err) { alert(err.message); }
+            } catch (err) { alert(err.message); } 
             finally {
                 inspectBtn.disabled = false;
                 inputLoader.classList.add("hidden");
@@ -1208,10 +1208,10 @@
                 urlInput.value = "";
                 currentInspectedData = null;
                 alert("プレバン監視リストに追加しました！");
-            } catch (err) {
-                alert("エラー: " + err.message);
-            } finally {
-                confirmAddBtn.disabled = false;
+            } catch (err) { 
+                alert("エラー: " + err.message); 
+            } finally { 
+                confirmAddBtn.disabled = false; 
                 confirmAddBtn.innerText = "この商品を監視する";
             }
         };
@@ -1235,7 +1235,7 @@
                 });
                 const data = await res.json();
                 if (res.ok) { alert(data.message); } else { alert("エラー: " + (data.error || "不明なエラー")); }
-            } catch (err) { alert("送信エラー: " + err.message); }
+            } catch (err) { alert("送信エラー: " + err.message); } 
             finally {
                 csvInput.value = "";
                 csvUploadBtn.innerHTML = originalBtnText;
@@ -1316,7 +1316,7 @@
                 alert("データの保存に失敗しました");
             }
         };
-
+        
         window.deleteItem = async (id) => {
             if (confirm("削除しますか？")) {
                 try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'watchlist', id)); }
@@ -1328,7 +1328,7 @@
         async function loadSettings(uid) {
             const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'line'));
             if (snap.exists()) { document.getElementById("line-id-input").value = snap.data().lineUserId || ""; }
-        }
+            }
         saveLineBtn.onclick = async () => {
             const val = document.getElementById("line-id-input").value.trim();
             if (!val.startsWith("U")) return alert("LINE User ID (U...) を入力してください");
