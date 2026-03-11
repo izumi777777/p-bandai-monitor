@@ -89,7 +89,7 @@ agent = project_client.agents.get_agent(AGENT_ID)
 
 
 # ==========================
-# 認証デコレータ (修正版)
+# 認証デコレータ
 # ==========================
 def login_required(f):
     @wraps(f)
@@ -126,25 +126,21 @@ def login_required(f):
 def is_allowed_p_bandai_or_test_url(url: str) -> bool:
     """
     プレミアムバンダイ or テスト用URL(/test-item) かどうかを厳格にチェック
-    SSRF対策のため、スキーム・ホスト名を検証する
     """
     try:
         parsed = urllib.parse.urlparse(url)
     except Exception:
         return False
 
-    # スキーム制限
     if parsed.scheme not in ("http", "https"):
         return False
 
     hostname = (parsed.hostname or "").lower()
     path = parsed.path or ""
 
-    # 自アプリ用テストページを許可
     if "/test-item" in path:
         return True
 
-    # プレミアムバンダイのみ許可
     if hostname == "p-bandai.jp" or hostname.endswith(".p-bandai.jp"):
         return True
 
@@ -167,7 +163,6 @@ def is_allowed_yahoo_auction_url(url: str) -> bool:
     if not hostname:
         return False
 
-    # ヤフオク関連ドメインのみ許可
     allowed_hosts = [
         "auctions.yahoo.co.jp",
         "page.auctions.yahoo.co.jp",
@@ -182,18 +177,15 @@ def is_allowed_yahoo_auction_url(url: str) -> bool:
 
 def scrape_premium_bandai(url):
     try:
-        # URLバリデーション（SSRF対策）
         if not is_allowed_p_bandai_or_test_url(url):
             logger.warning(f"⚠️ 許可されていないURLへのアクセス試行がブロックされました: {url}")
             return None
 
-        # プレミアムバンダイのBot対策を回避するために impersonate を使用
-        # リダイレクトは一度だけ手動追従し、遷移先もホワイトリストで再チェックする
         res = requests.get(
             url,
             impersonate="chrome120",
             timeout=15,
-            allow_redirects=False,  # 直接の自動リダイレクトは禁止
+            allow_redirects=False,
         )
 
         if res.status_code in (301, 302, 303, 307, 308):
@@ -243,20 +235,15 @@ def get_stock_status_via_agent(url):
     if not scraped:
         return None, None
 
-    # Azure AI Agent のスレッド作成
     thread = project_client.agents.threads.create()
-
-    # 解析依頼
     prompt = f"以下の商品情報を解析してJSONで返してください。特に在庫が復活しているか判断してください: {json.dumps(scraped, ensure_ascii=False)}"
 
     project_client.agents.messages.create(
         thread_id=thread.id, role="user", content=prompt
     )
-
     project_client.agents.runs.create_and_process(
         thread_id=thread.id, agent_id=agent.id
     )
-
     messages = project_client.agents.messages.list(
         thread_id=thread.id, order=ListSortOrder.DESCENDING
     )
@@ -265,7 +252,6 @@ def get_stock_status_via_agent(url):
         if m.role == "assistant" and m.text_messages:
             text = m.text_messages[0].text.value
             try:
-                # エージェントが返したテキストからJSON部分を抽出
                 match = re.search(r"\{.*\}", text, re.DOTALL)
                 if match:
                     return json.loads(match.group()), thread.id
@@ -276,189 +262,24 @@ def get_stock_status_via_agent(url):
     return scraped, thread.id
 
 
-# ==========================
-# API Routes
-# ==========================
-@app.route("/")
-def index():
-    # Secrets Managerから取得した、または環境変数にある値を渡す
-    firebase_config = {
-        "apiKey": os.getenv("FIREBASE_API_KEY"),
-        "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
-        "projectId": os.getenv("FIREBASE_PROJECT_ID"),
-        "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
-        "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
-        "appId": os.getenv("FIREBASE_APP_ID"),
-    }
-    return render_template("index.html", config=firebase_config)
-
-
-@app.route("/api/monitor", methods=["POST"])
-@login_required
-def api_monitor():
-    url = request.json.get("url")
-    if not url:
-        return jsonify({"error": "URLが指定されていません"}), 400
-
-    logger.info(f"🔍 調査開始: {url}")
-    result, thread_id = get_stock_status_via_agent(url)
-
-    if not result:
-        return jsonify({"error": "商品情報の取得に失敗しました。URLを確認してください。"}), 500
-
-    return jsonify({"preview": result, "thread_id": thread_id})
-
-
-@app.route("/api/watchlist", methods=["POST"])
-@login_required
-def api_watchlist_add():
-    if not db:
-        return jsonify({"error": "データベースに接続できません"}), 500
-
-    uid = request.user["uid"]
-    data = request.json
-
-    try:
-        # パス規則: /artifacts/{appId}/users/{userId}/watchlist
-        db.collection("artifacts").document(APP_ID).collection("users").document(
-            uid
-        ).collection("watchlist").add(
-            {
-                **data,
-                "createdAt": firestore.SERVER_TIMESTAMP,
-                "lastChecked": firestore.SERVER_TIMESTAMP,
-            }
-        )
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-
-# ==========================
-# CSV 一括登録エンドポイント (新規追加)
-# ==========================
-@app.route("/api/watchlist/csv", methods=["POST"])
-@login_required
-def api_watchlist_csv():
-    if not db:
-        return jsonify({"error": "データベースに接続できません"}), 500
-
-    # 1. ファイルチェック
-    if 'file' not in request.files:
-        return jsonify({"error": "ファイルが送信されていません"}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "ファイルが選択されていません"}), 400
-
-    # 2. CSV読み込みとバリデーション
-    try:
-        # バイナリデータをテキストとして読み込む
-        stream = io.StringIO(file.stream.read().decode("utf-8"), newline=None)
-        csv_input = csv.DictReader(stream)
-        
-        # リスト化して件数チェック
-        rows = list(csv_input)
-        
-        if len(rows) > 5:
-            return jsonify({"error": "一度に登録できるのは最大5件までです"}), 400
-        
-        if not rows:
-             return jsonify({"error": "CSVデータが空です"}), 400
-             
-        # ヘッダーチェック (BOM付きUTF-8対策で、キーの中に'url'が含まれるか探す)
-        header_check = any("url" in key.lower() for key in rows[0].keys())
-        if not header_check:
-            return jsonify({"error": "CSVの一行目に 'url' という列が必要です"}), 400
-
-    except Exception as e:
-        return jsonify({"error": f"CSV解析エラー: {str(e)}"}), 400
-
-    # 3. ループ処理
-    uid = request.user["uid"]
-    results = {
-        "success": [],
-        "errors": []
-    }
-    
-    # ユーザーのコレクション参照
-    watchlist_ref = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("watchlist")
-
-    for index, row in enumerate(rows):
-        # キーの揺らぎ吸収（'URL', 'url ' などに対応）
-        url = None
-        for k, v in row.items():
-            if k.strip().lower() == "url":
-                url = v.strip()
-                break
-        
-        if not url:
-            results["errors"].append(f"{index+1}行目: URLが見つかりません")
-            continue
-
-        # プレバンURLか簡易チェック
-        # if "p-bandai.jp" not in url:
-        #     results["errors"].append(f"{index+1}行目: プレミアムバンダイのURLではありません")
-        #     continue
-        
-        # プレバンURLか簡易チェック（テスト用URLも許可） ※SSRF対策で厳格判定
-        if not is_allowed_p_bandai_or_test_url(url):
-            results["errors"].append(f"{index+1}行目: 対象外のURLです")
-            continue
-
-        # スクレイピング実行 (AIは使わず高速に)
-        scraped = scrape_premium_bandai(url)
-        
-        if scraped:
-            try:
-                watchlist_ref.add({
-                    "url": url,
-                    "title": scraped["title"],
-                    "price": scraped["price"],
-                    "imageUrl": scraped["imageUrl"],
-                    "inStock": scraped["inStock"],
-                    "statusText": scraped["statusText"],
-                    "createdAt": firestore.SERVER_TIMESTAMP,
-                    "lastChecked": firestore.SERVER_TIMESTAMP,
-                    "lastNotifiedStatus": scraped["inStock"]
-                })
-                results["success"].append(scraped["title"])
-            except Exception as e:
-                results["errors"].append(f"{index+1}行目: DB保存エラー {str(e)}")
-        else:
-            results["errors"].append(f"{index+1}行目: 商品情報の取得に失敗しました")
-
-    return jsonify({
-        "message": f"{len(results['success'])}件 登録しました",
-        "results": results
-    })
-
-
 # ======================================================================
-# ヤフオク検索キーワード最適化
+# ヤフオク・ラクマ検索キーワード最適化
 # ======================================================================
 def optimize_search_keyword(raw_keyword):
     """
-    ユーザーの入力をヤフオクでヒットしやすい「あいまい検索」用に最適化する
+    ユーザーの入力をヤフオク/ラクマでヒットしやすい「あいまい検索」用に最適化する
     """
-    # 1. 全角英数字を半角に統一（例：ＣＳＭ ➔ CSM）
     keyword = unicodedata.normalize('NFKC', raw_keyword)
-    
-    # 2. 英語/数字と日本語の境界に自動でスペースを入れる（例：CSMファイズギア ➔ CSM ファイズギア）
     keyword = re.sub(r'([a-zA-Z0-9])([^\x01-\x7E])', r'\1 \2', keyword)
     keyword = re.sub(r'([^\x01-\x7E])([a-zA-Z0-9])', r'\1 \2', keyword)
-    
-    # 3. 余分なスペースを1つにまとめる
     keyword = re.sub(r'\s+', ' ', keyword).strip()
-    
     return keyword
+
 
 # =======================================================================================
 # ヤフオク落札相場取得 (__NEXT_DATA__ JSON ベース版)
 # =======================================================================================
-
 def _extract_next_data(html: str):
-    """Next.js の <script id="__NEXT_DATA__"> からJSONを取り出す"""
     soup = BeautifulSoup(html, "html.parser")
     tag = soup.find("script", id="__NEXT_DATA__")
     if tag and tag.string:
@@ -468,31 +289,17 @@ def _extract_next_data(html: str):
             return None
     return None
 
-
 def _get_listing(data: dict) -> dict:
-    """__NEXT_DATA__ から closedsearch の listing ブロックを返す"""
     try:
-        return (
-            data["props"]["pageProps"]["initialState"]["search"]["items"]["listing"]
-        )
+        return data["props"]["pageProps"]["initialState"]["search"]["items"]["listing"]
     except (KeyError, TypeError):
         return {}
 
-
 def _build_closed_url(keyword: str, offset: int = 1, page_size: int = 50) -> str:
-    """落札相場検索URLを生成する"""
     params = {"p": keyword, "b": offset, "n": page_size}
-    return (
-        "https://auctions.yahoo.co.jp/closedsearch/closedsearch?"
-        + urllib.parse.urlencode(params)
-    )
-
+    return "https://auctions.yahoo.co.jp/closedsearch/closedsearch?" + urllib.parse.urlencode(params)
 
 def _fetch_closed_page(keyword: str, offset: int, page_size: int) -> tuple:
-    """
-    1ページ分の落札データを取得する。
-    Returns: (rows: list, total_available: int)
-    """
     url = _build_closed_url(keyword, offset, page_size)
     logger.info(f"📄 落札相場取得中: {url}")
 
@@ -516,13 +323,12 @@ def _fetch_closed_page(keyword: str, offset: int, page_size: int) -> tuple:
             auction_id = item.get("auctionId", "")
             title = (item.get("title") or "").strip()
             price = item.get("price")
-            end_time = item.get("endTime", "")  # ISO 8601 形式
+            end_time = item.get("endTime", "")
 
             if not auction_id or not title or price is None:
                 continue
 
             price_int = int(price)
-            # __NEXT_DATA__ の正しいフィールド名は "imageUrl"（文字列の直接URL）
             image_url = item.get("imageUrl", "")
             rows.append({
                 "title": title,
@@ -534,47 +340,33 @@ def _fetch_closed_page(keyword: str, offset: int, page_size: int) -> tuple:
             })
         except Exception:
             continue
-
     return rows, total
 
-
 def scrape_yahuoku_closed(raw_keyword: str, max_pages: int = 3):
-    """
-    ヤフオクの落札相場検索（__NEXT_DATA__ JSONベース・あいまい検索対応版）
-    """
     try:
         keyword = optimize_search_keyword(raw_keyword)
         logger.info(f"🔍 検索キーワードを最適化: '{raw_keyword}' ➔ '{keyword}'")
 
         def collect(search_kw: str) -> list:
-            """指定キーワードで最大 max_pages ページ分を収集する"""
             all_items = []
             offset = 1
             page_size = 50
             total_available = None
-
             for _ in range(max_pages):
                 rows, total = _fetch_closed_page(search_kw, offset, page_size)
-
                 if total_available is None and total > 0:
                     total_available = total
                     logger.info(f"📊 総落札件数: {total_available:,} 件 (keyword={search_kw})")
-
                 if not rows:
                     break
-
                 all_items.extend(rows)
                 offset += page_size
                 if total_available and offset > total_available:
                     break
-
             return all_items
 
-        # 1回目: 最適化キーワード
         items = collect(keyword)
 
-        # フォールバック: ヒットゼロなら末尾単語を削って条件を緩める
-        # 例: "CSM ファイズギア ver2" → "CSM ファイズギア"
         if not items and " " in keyword:
             looser_keyword = " ".join(keyword.split(" ")[:-1])
             logger.info(f"⚠️ ヒットなし。条件を緩めて再検索します: '{looser_keyword}'")
@@ -599,18 +391,12 @@ def scrape_yahuoku_closed(raw_keyword: str, max_pages: int = 3):
 
 
 # ========================================================
-# 開催中オークション取得処理 (新規追加)
+# 開催中オークション取得処理
 # ========================================================
 def scrape_yahuoku_active(raw_keyword):
-    """
-    ヤフオクの現在開催中の検索結果をスクレイピングする
-    """
     try:
-        # 入力を自動補正（あいまい検索対応）
         keyword = optimize_search_keyword(raw_keyword)
         encoded_keyword = urllib.parse.quote(keyword)
-        
-        # 開催中の検索URL
         url = f"https://auctions.yahoo.co.jp/search/search?p={encoded_keyword}&n=50"
         
         res = requests.get(url, impersonate="chrome120", timeout=15)
@@ -628,21 +414,17 @@ def scrape_yahuoku_active(raw_keyword):
                 price_tag = item.find("span", class_="Product__priceValue")
                 img_tag = item.find("img")
                 
-                # 即決価格がある場合は取得
                 buy_now_tag = item.find("span", class_="Product__priceValue Product__priceValue--buyNow")
                 buy_now_price = buy_now_tag.text.strip() if buy_now_tag else None
 
-                # ▼ 追加：入札件数の取得（Product__bid 系のクラス名から取得）
                 bid_tag = item.find(class_=re.compile(r"Product__bid"))
                 bids = bid_tag.text.strip() if bid_tag else "0"
 
-                # ▼ 追加：終了時間（残り時間）の取得（Product__time 系のクラス名から取得）
                 time_tag = item.find(class_=re.compile(r"Product__time"))
                 end_time = time_tag.text.strip() if time_tag else "-"
 
                 if title_tag and price_tag:
                     title = title_tag.text.strip()
-                    # ヤフオクのリンクが相対パスの場合でも絶対URLに正規化する
                     item_url = urllib.parse.urljoin(
                         "https://auctions.yahoo.co.jp",
                         title_tag.get("href", "#"),
@@ -656,15 +438,14 @@ def scrape_yahuoku_active(raw_keyword):
                         "price": price_str,
                         "buy_now_price": buy_now_price,
                         "image": img_url,
-                        "bids": bids,            # フロントに渡すデータに追加
-                        "end_time": end_time     # フロントに渡すデータに追加
+                        "bids": bids,
+                        "end_time": end_time
                     })
             except Exception as e:
                 continue
 
         if not items:
             return None
-
         return items
         
     except Exception as e:
@@ -672,8 +453,299 @@ def scrape_yahuoku_active(raw_keyword):
         return None
 
 # ========================================================
-# API: 開催中オークション追跡
+# ラクマ(fril.jp) 検索価格取得処理 (新規追加・テスト済)
 # ========================================================
+def scrape_rakuma_prices(raw_keyword: str):
+    """
+    ラクマ(fril.jp)販売中価格取得
+    """
+    try:
+        keyword = optimize_search_keyword(raw_keyword)
+        encoded = urllib.parse.quote_plus(keyword)
+        url = f"https://fril.jp/s?query={encoded}"
+
+        logger.info(f"🛍️ ラクマ取得中: {url}")
+        
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Referer":         "https://fril.jp/",
+            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+            "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+        
+        res = requests.get(url, impersonate="chrome120", timeout=30, headers=headers)
+
+        if res.status_code != 200:
+            logger.warning(f"⚠️ ラクマ HTTP {res.status_code}")
+            return None
+
+        soup = BeautifulSoup(res.text, "html.parser")
+        items_fetched = []
+
+        # ① item カード方式
+        cards = soup.find_all("li", class_=re.compile(r"item"))
+        if not cards:
+            cards = soup.find_all("div", class_=re.compile(r"item.box|item-box|ItemBox"))
+        if not cards:
+            cards = soup.find_all(attrs={"data-price": True})
+
+        logger.info(f"🔍 ラクマ カード数: {len(cards)}")
+
+        for card in cards[:50]:
+            try:
+                price_str = ""
+                if card.get("data-price"):
+                    price_str = re.sub(r"\D", "", card["data-price"])
+                if not price_str:
+                    p_tag = card.find(class_=re.compile(r"price", re.I))
+                    if p_tag:
+                        price_str = re.sub(r"\D", "", p_tag.get_text())
+                if not price_str:
+                    for t in card.find_all(string=re.compile(r"[¥￥][\d,]+")):
+                        price_str = re.sub(r"\D", "", t)
+                        if price_str:
+                            break
+                if not price_str or not price_str.isdigit():
+                    continue
+
+                title = ""
+                t_tag = card.find(class_=re.compile(r"name|title", re.I))
+                title = t_tag.get_text(strip=True) if t_tag else ""
+                if not title:
+                    img = card.find("img")
+                    title = img.get("alt", "") if img else ""
+                
+                a_tag = card.find("a", href=True)
+                item_url = urllib.parse.urljoin("https://fril.jp", a_tag["href"]) if a_tag else ""
+                
+                items_fetched.append({"title": title or "ラクマ商品", "price": price_str, "url": item_url})
+            except Exception:
+                continue
+
+        # ② フォールバック
+        if not items_fetched:
+            logger.info("🔄 ラクマ 最終フォールバック実行中...")
+            for tag in soup.find_all(string=re.compile(r"[¥￥][\d,]{3,}")):
+                p_val = re.sub(r"\D", "", tag)
+                if p_val and p_val.isdigit() and 100 <= int(p_val) <= 9_999_999:
+                    parent_a = tag.find_parent("a")
+                    items_fetched.append({
+                        "title": "ラクマ商品",
+                        "price": p_val,
+                        "url": urllib.parse.urljoin(
+                            "https://fril.jp",
+                            parent_a["href"] if parent_a and parent_a.get("href") else ""
+                        )
+                    })
+                    if len(items_fetched) >= 30:
+                        break
+
+        if not items_fetched:
+            logger.warning(f"⚠️ ラクマ価格ゼロ件: keyword={keyword}")
+            return None
+
+        prices = [int(i["price"]) for i in items_fetched if i["price"].isdigit()]
+        if not prices:
+            return None
+
+        logger.info(f"📊 ラクマ取得完了: {len(prices)}件 min={min(prices):,}円 (keyword={keyword})")
+        return {
+            "min_price":    min(prices),
+            "avg_price":    sum(prices) // len(prices),
+            "sample_count": len(prices),
+            "items":        items_fetched[:20]
+        }
+    except Exception as e:
+        logger.error(f"Rakuma Scrape Error: {e}")
+        return None
+
+# ==========================
+# API Routes
+# ==========================
+@app.route("/")
+def index():
+    firebase_config = {
+        "apiKey": os.getenv("FIREBASE_API_KEY"),
+        "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
+        "projectId": os.getenv("FIREBASE_PROJECT_ID"),
+        "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
+        "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
+        "appId": os.getenv("FIREBASE_APP_ID"),
+    }
+    return render_template("index.html", config=firebase_config)
+
+@app.route("/api/monitor", methods=["POST"])
+@login_required
+def api_monitor():
+    url = request.json.get("url")
+    if not url:
+        return jsonify({"error": "URLが指定されていません"}), 400
+
+    logger.info(f"🔍 調査開始: {url}")
+    result, thread_id = get_stock_status_via_agent(url)
+
+    if not result:
+        return jsonify({"error": "商品情報の取得に失敗しました。URLを確認してください。"}), 500
+
+    return jsonify({"preview": result, "thread_id": thread_id})
+
+
+# ========================================================
+# 利ザヤチェッカー API (新規追加)
+# ========================================================
+@app.route("/api/profit-check", methods=["POST"])
+@login_required
+def api_profit_check():
+    try:
+        data = request.get_json() or {}
+        keyword = (data.get("keyword") or "").strip()
+        if not keyword:
+            return jsonify({"error": "キーワードが指定されていません"}), 400
+
+        s_sell     = int(data.get("shipping_sell") or 600)
+        s_buy      = int(data.get("shipping_buy")  or 600)
+        manual_buy = data.get("manual_buy_price")
+
+        yahoo_data = scrape_yahuoku_closed(keyword)
+        if not yahoo_data:
+            return jsonify({"error": "ヤフオクで落札データが見つかりませんでした。"}), 404
+
+        rakuma_data = None
+        buy_price = 0
+        if manual_buy is not None and str(manual_buy).lstrip('-').isdigit():
+            buy_price = int(manual_buy)
+        else:
+            rakuma_data = scrape_rakuma_prices(keyword)
+            buy_price = rakuma_data["min_price"] if rakuma_data else 0
+
+        def calc(sell_price_str: str) -> dict:
+            s_val      = int(str(sell_price_str).replace(",", ""))
+            fee        = int(s_val * 0.088) # ヤフオク手数料 8.8%計算
+            total_cost = buy_price + s_buy + s_sell + fee
+            profit     = s_val - total_cost
+            roi        = round((profit / total_cost) * 100, 1) if total_cost > 0 else 0
+            p_rate     = round((profit / s_val)      * 100, 1) if s_val      > 0 else 0
+            
+            if buy_price <= 0:
+                verdict, label = "UNKNOWN", "仕入れ価格不明"
+            elif profit > 2000 and roi > 15:
+                verdict, label = "BUY",     "激アツ！仕入れ推奨"
+            elif profit > 0:
+                verdict, label = "CONSIDER", "検討の余地あり"
+            else:
+                verdict, label = "LOSS",    "仕入れ対象外"
+                
+            return {
+                "profit": profit, "roi": roi, "profit_rate": p_rate,
+                "buy_price": buy_price, "sell_price": s_val,
+                "total_cost": total_cost, "yahoo_fee": fee,
+                "verdict": verdict, "verdict_label": label
+            }
+
+        return jsonify({
+            "keyword":      keyword,
+            "yahoo_data":   yahoo_data,
+            "rakuma_data": rakuma_data,
+            "profit_avg":   calc(yahoo_data["avg_price"]),
+            "profit_max":   calc(yahoo_data["max_price"])
+        })
+    except Exception as e:
+        logger.error(f"Profit Check API Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/watchlist", methods=["POST"])
+@login_required
+def api_watchlist_add():
+    if not db:
+        return jsonify({"error": "データベースに接続できません"}), 500
+    uid = request.user["uid"]
+    data = request.json
+    try:
+        db.collection("artifacts").document(APP_ID).collection("users").document(
+            uid
+        ).collection("watchlist").add(
+            {
+                **data,
+                "createdAt": firestore.SERVER_TIMESTAMP,
+                "lastChecked": firestore.SERVER_TIMESTAMP,
+            }
+        )
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route("/api/watchlist/csv", methods=["POST"])
+@login_required
+def api_watchlist_csv():
+    if not db:
+        return jsonify({"error": "データベースに接続できません"}), 500
+    if 'file' not in request.files:
+        return jsonify({"error": "ファイルが送信されていません"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "ファイルが選択されていません"}), 400
+    try:
+        stream = io.StringIO(file.stream.read().decode("utf-8"), newline=None)
+        csv_input = csv.DictReader(stream)
+        rows = list(csv_input)
+        if len(rows) > 5:
+            return jsonify({"error": "一度に登録できるのは最大5件までです"}), 400
+        if not rows:
+             return jsonify({"error": "CSVデータが空です"}), 400
+        header_check = any("url" in key.lower() for key in rows[0].keys())
+        if not header_check:
+            return jsonify({"error": "CSVの一行目に 'url' という列が必要です"}), 400
+    except Exception as e:
+        return jsonify({"error": f"CSV解析エラー: {str(e)}"}), 400
+
+    uid = request.user["uid"]
+    results = {"success": [], "errors": []}
+    watchlist_ref = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("watchlist")
+
+    for index, row in enumerate(rows):
+        url = None
+        for k, v in row.items():
+            if k.strip().lower() == "url":
+                url = v.strip()
+                break
+        if not url:
+            results["errors"].append(f"{index+1}行目: URLが見つかりません")
+            continue
+        if not is_allowed_p_bandai_or_test_url(url):
+            results["errors"].append(f"{index+1}行目: 対象外のURLです")
+            continue
+
+        scraped = scrape_premium_bandai(url)
+        if scraped:
+            try:
+                watchlist_ref.add({
+                    "url": url,
+                    "title": scraped["title"],
+                    "price": scraped["price"],
+                    "imageUrl": scraped["imageUrl"],
+                    "inStock": scraped["inStock"],
+                    "statusText": scraped["statusText"],
+                    "createdAt": firestore.SERVER_TIMESTAMP,
+                    "lastChecked": firestore.SERVER_TIMESTAMP,
+                    "lastNotifiedStatus": scraped["inStock"]
+                })
+                results["success"].append(scraped["title"])
+            except Exception as e:
+                results["errors"].append(f"{index+1}行目: DB保存エラー {str(e)}")
+        else:
+            results["errors"].append(f"{index+1}行目: 商品情報の取得に失敗しました")
+
+    return jsonify({
+        "message": f"{len(results['success'])}件 登録しました",
+        "results": results
+    })
+
 @app.route("/api/auctions/active", methods=["POST"])
 @login_required
 def api_auctions_active():
@@ -682,15 +754,11 @@ def api_auctions_active():
         return jsonify({"error": "検索キーワードを入力してください"}), 400
 
     results = scrape_yahuoku_active(keyword)
-    
     if results is None:
         return jsonify({"error": "現在開催中のオークションは見つかりませんでした"}), 404
 
     return jsonify({"items": results})
 
-# ==============================================================================================
-# AIせどり鑑定士 (ヤフオク相場 ➔ AI判定) API
-# ==============================================================================================
 @app.route("/api/scout", methods=["POST"])
 @login_required
 def api_scout_item():
@@ -700,16 +768,12 @@ def api_scout_item():
 
     logger.info(f"🔎 AI鑑定開始: {keyword}")
 
-    # 1. ヤフオクの落札相場を高速スクレイピング
     market_data = scrape_yahuoku_closed(keyword)
     if not market_data:
         return jsonify({"error": "ヤフオクの落札相場データが見つかりませんでした。別のキーワードをお試しください。"}), 404
 
-    # 2. Azure AI Agent による鑑定依頼
     try:
         thread = project_client.agents.threads.create()
-        
-        # 古物商としてのノウハウをAIにプロンプトで指示
         prompt = f"""
         あなたはプロの古物商・せどりアドバイザーです。
         ユーザーが検索した商品「{keyword}」のヤフオク直近落札データは以下の通りです。
@@ -727,11 +791,9 @@ def api_scout_item():
         project_client.agents.messages.create(
             thread_id=thread.id, role="user", content=prompt
         )
-        
         project_client.agents.runs.create_and_process(
             thread_id=thread.id, agent_id=agent.id
         )
-        
         messages = project_client.agents.messages.list(
             thread_id=thread.id, order=ListSortOrder.DESCENDING
         )
@@ -740,7 +802,6 @@ def api_scout_item():
             if m.role == "assistant" and m.text_messages:
                 text = m.text_messages[0].text.value
                 try:
-                    # AIの返答からJSON部分だけを抽出
                     match = re.search(r"\{.*\}", text, re.DOTALL)
                     if match:
                         appraisal = json.loads(match.group())
@@ -760,10 +821,6 @@ def api_scout_item():
         logger.error(f"AI鑑定エラー: {e}")
         return jsonify({"error": str(e)}), 500
     
-
-# ========================================================
-# AIせどり鑑定士 (追加質問 API)
-# ========================================================
 @app.route("/api/scout/followup", methods=["POST"])
 @login_required
 def api_scout_followup():
@@ -774,43 +831,32 @@ def api_scout_followup():
         return jsonify({"error": "必要な情報が不足しています"}), 400
 
     try:
-        # AIが再びJSONで返してこないように、裏でこっそり指示を追加
         prompt = f"{user_message}\n(※この追加質問にはJSON形式ではなく、通常の日本語テキストで簡潔に回答してください)"
-
-        # 既存のスレッド(文脈を記憶している)にメッセージを追加
         project_client.agents.messages.create(
             thread_id=thread_id, role="user", content=prompt
         )
-        
         project_client.agents.runs.create_and_process(
             thread_id=thread_id, agent_id=agent.id
         )
-        
         messages = project_client.agents.messages.list(
             thread_id=thread_id, order=ListSortOrder.DESCENDING
         )
 
         for m in messages:
             if m.role == "assistant" and m.text_messages:
-                # AIからの最新のテキスト回答をそのまま返す
                 text = m.text_messages[0].text.value
                 return jsonify({"answer": text})
 
         return jsonify({"error": "AIからの応答がありませんでした"}), 500
-
     except Exception as e:
         logger.error(f"AI追加質問エラー: {e}")
         return jsonify({"error": str(e)}), 500
     
 
-# =======================================================================================
-# LINE通知機能
-# =======================================================================================
 def send_line_notification(line_user_id: str, message: str):
     if not LINE_TOKEN or not line_user_id:
         logger.warning("⚠️ LINE通知スキップ（設定不足）")
         return
-
     try:
         line_bot_api = LineBotApi(LINE_TOKEN)
         line_bot_api.push_message(
@@ -821,19 +867,12 @@ def send_line_notification(line_user_id: str, message: str):
     except LineBotApiError as e:
         logger.error(f"❌ LINE送信エラー: {e}")
 
-
-# =======================================================================================
-# LINE通知テスト機能(非本番向け)
-# =======================================================================================
 @app.route("/api/test-notification", methods=["POST"])
 @login_required
 def api_test_notification():
     if not db:
         return jsonify({"error": "DB not initialized"}), 500
-
     uid = request.user["uid"]
-
-    # LINE設定取得
     line_doc = (
         db.collection("artifacts")
         .document(APP_ID)
@@ -843,56 +882,38 @@ def api_test_notification():
         .document("line")
         .get()
     )
-
     if not line_doc.exists:
         return jsonify({"error": "LINE USER ID が未設定です"}), 400
-
     line_user_id = line_doc.to_dict().get("lineUserId")
     if not line_user_id:
         return jsonify({"error": "LINE USER ID が不正です"}), 400
-
-    # テスト通知送信
     message = """🧪 テスト通知
 PB Stock Monitor Pro です。
 
 このメッセージが届いていれば、
 LINE通知設定は正常に動作しています 👍
 """
-
     send_line_notification(line_user_id, message)
-
     return jsonify({"status": "ok"})
 
-# ========================================================
-# Webhook エンドポイント
-# ========================================================
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers.get("X-Line-Signature")
     body = request.get_data(as_text=True)
-
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
     return "OK"
 
-# ========================================================
-#  自動返信ロジック: User ID を返却する 
-# ========================================================
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    
     user_id = event.source.user_id
-                            
-    # ユーザーに送るメッセージを作成
     reply_text = (
                    f"あなたの LINE User ID はこちらです：\n\n"
                    f"{user_id}\n\n"
                    f"この値をコピーしてアプリの設定画面に貼り付けてください。"
     )
-                                        
-    # LINEで返信
     try:
         line_bot_api.reply_message(
             event.reply_token,
@@ -901,15 +922,8 @@ def handle_message(event):
     except Exception as e:
         app.logger.error(f"Error sending reply: {e}")
 
-# ========================================================================================
-# ヤフオク個別ページ専用のスクレイピング関数
-# ========================================================================================
 def scrape_yahuoku_item_page(url):
-    """
-    ヤフオク個別商品ページの現在価格と残り時間を取得する
-    """
     try:
-        # URLバリデーション（SSRF対策）
         if not is_allowed_yahoo_auction_url(url):
             logger.warning(f"⚠️ 許可されていないヤフオクURLへのアクセス試行がブロックされました: {url}")
             return None
@@ -918,28 +932,25 @@ def scrape_yahuoku_item_page(url):
             url,
             impersonate="chrome120",
             timeout=15,
-            allow_redirects=False,  # リダイレクトチェーンを制限
+            allow_redirects=False,
         )
         if res.status_code != 200:
             return None
             
         soup = BeautifulSoup(res.text, "html.parser")
-        
-        # 現在価格の取得 (クラス名はヤフオクの仕様変更で変わる可能性あり)
         price_tag = soup.find("dd", class_="Price__value")
         if not price_tag:
             return None
             
         price_str = price_tag.text.strip()
-        price_int = int(re.sub(r"\D", "", price_str)) # 数字だけ抽出
+        price_int = int(re.sub(r"\D", "", price_str))
         
-        # 残り時間の取得
         time_tag = soup.find("li", class_="Count__item--time")
         time_rem = "不明"
         if time_tag:
             time_value = time_tag.find("dd", class_="Count__number")
             if time_value:
-                time_rem = time_value.text.strip() # 例: "8分", "12時間", "終了"
+                time_rem = time_value.text.strip()
                 
         return {
             "price_int": price_int,
@@ -950,13 +961,8 @@ def scrape_yahuoku_item_page(url):
         logger.error(f"❌ ヤフオク個別取得エラー: {e}")
         return None
 
-
-# ========================================================================================
-# 監視ジョブ本体 (デバッグログ強化版)
-# ========================================================================================
 def check_watchlist_job():
     logger.info("⏰ 統合在庫・相場監視ジョブ開始")
-
     users_ref = db.collection("artifacts").document(APP_ID).collection("users")
     user_refs = list(users_ref.list_documents())
 
@@ -976,16 +982,12 @@ def check_watchlist_job():
             url = item.get("url", "")
             title = item.get("title", "名称不明")
 
-            # ==========================================
-            # プレバン監視ロジック
-            # ==========================================
+            # --- プレバン監視 ---
             if is_allowed_p_bandai_or_test_url(url):
                 scraped = scrape_premium_bandai(url)
                 if not scraped: continue
-
                 prev_status = item.get("inStock", False)
                 current_status = scraped["inStock"]
-                
                 if prev_status != current_status:
                     item_doc.reference.update({
                         "inStock": current_status,
@@ -995,175 +997,118 @@ def check_watchlist_job():
                     msg = f"📦 プレバン在庫変動\n{title}\n状態: {scraped['statusText']}\n{url}"
                     send_line_notification(line_user_id, msg)
 
-            # ==========================================
-            # ヤフオク監視ロジック (新規追加)
-            # ==========================================
+            # --- ヤフオク監視 ---
             else:
-                # ヤフオクの相対パスで保存されている既存データを自動補正
                 if url and url.startswith("/"):
-                    fixed_url = urllib.parse.urljoin(
-                        "https://auctions.yahoo.co.jp",
-                        url,
-                    )
+                    fixed_url = urllib.parse.urljoin("[https://auctions.yahoo.co.jp](https://auctions.yahoo.co.jp)", url)
                     url = fixed_url
                     try:
                         item_doc.reference.update({"url": fixed_url})
                     except Exception as e:
                         logger.error(f"❌ URL自動補正エラー: {e}")
 
-            if is_allowed_yahoo_auction_url(url):
-                scraped = scrape_yahuoku_item_page(url)
-                if not scraped:
-                    continue
+                if is_allowed_yahoo_auction_url(url):
+                    scraped = scrape_yahuoku_item_page(url)
+                    if not scraped:
+                        continue
 
-                # 期限切れ（終了）したオークションはアーカイブしてから監視リストから削除
-                time_rem = scraped["time_remaining"]
-                if "終了" in time_rem:
-                    try:
-                        archive_ref = users_ref.document(uid).collection("yahoo_archive")
-                        archive_data = {
-                            **item,
-                            "finalPrice": scraped["price_int"],
-                            "finalPriceText": scraped["price_str"],
-                            "endedAt": firestore.SERVER_TIMESTAMP,
-                            "sourceUrl": url,
-                        }
-                        archive_ref.add(archive_data)
-                        logger.info(f"📦 ヤフオク終了オークションをアーカイブ: {title} ({url})")
-                        item_doc.reference.delete()
-                    except Exception as e:
-                        logger.error(f"❌ 終了オークションアーカイブ/削除エラー: {e}")
-                    continue
+                    time_rem = scraped["time_remaining"]
+                    if "終了" in time_rem:
+                        try:
+                            archive_ref = users_ref.document(uid).collection("yahoo_archive")
+                            archive_data = {
+                                **item,
+                                "finalPrice": scraped["price_int"],
+                                "finalPriceText": scraped["price_str"],
+                                "endedAt": firestore.SERVER_TIMESTAMP,
+                                "sourceUrl": url,
+                            }
+                            archive_ref.add(archive_data)
+                            logger.info(f"📦 ヤフオク終了オークションをアーカイブ: {title} ({url})")
+                            item_doc.reference.delete()
+                        except Exception as e:
+                            logger.error(f"❌ 終了オークションアーカイブ/削除エラー: {e}")
+                        continue
 
-                updates = {}
-                msgs = []
-                current_price = scraped["price_int"]
+                    updates = {}
+                    msgs = []
+                    current_price = scraped["price_int"]
 
-                # ① 高値更新チェック（自分が設定した上限を超えたか）
-                my_limit = item.get("my_target_price")
-                if my_limit and current_price > my_limit:
-                    # 同じ価格で何度も通知しないためのフラグチェック
-                    if item.get("last_notified_price") != current_price:
-                        msgs.append(f"⚠️ 予算超過通知\n設定上限: {my_limit:,}円\n現在価格: {current_price:,}円に更新されました。")
-                        updates["last_notified_price"] = current_price
+                    my_limit = item.get("my_target_price")
+                    if my_limit and current_price > my_limit:
+                        if item.get("last_notified_price") != current_price:
+                            msgs.append(f"⚠️ 予算超過通知\n設定上限: {my_limit:,}円\n現在価格: {current_price:,}円に更新されました。")
+                            updates["last_notified_price"] = current_price
 
-                # ② 終了10分前チェック
-                # 「分」が含まれていて、かつ10以下の場合に通知
-                if "分" in time_rem:
-                    try:
-                        mins = int(re.sub(r"\D", "", time_rem))
-                        if mins <= 10 and not item.get("notified_10min"):
-                            msgs.append(f"⏳ 終了間近通知\n残り時間: {time_rem}\n現在価格: {current_price:,}円")
-                            updates["notified_10min"] = True # 一度通知したらフラグを立てる
-                    except ValueError:
-                        pass
+                    if "分" in time_rem:
+                        try:
+                            mins = int(re.sub(r"\D", "", time_rem))
+                            if mins <= 10 and not item.get("notified_10min"):
+                                msgs.append(f"⏳ 終了間近通知\n残り時間: {time_rem}\n現在価格: {current_price:,}円")
+                                updates["notified_10min"] = True
+                        except ValueError:
+                            pass
 
-                # 変更や通知すべき事象があればFirestore更新とLINE送信
-                updates["statusText"] = f"現在:{scraped['price_str']} / 残り:{time_rem}"
-                updates["lastChecked"] = firestore.SERVER_TIMESTAMP
-                item_doc.reference.update(updates)
+                    updates["statusText"] = f"現在:{scraped['price_str']} / 残り:{time_rem}"
+                    updates["lastChecked"] = firestore.SERVER_TIMESTAMP
+                    item_doc.reference.update(updates)
 
-                if msgs:
-                    combined_msg = f"🔨 ヤフオク監視\n{title}\n\n" + "\n---\n".join(msgs) + f"\n\n{url}"
-                    send_line_notification(line_user_id, combined_msg)
+                    if msgs:
+                        combined_msg = f"🔨 ヤフオク監視\n{title}\n\n" + "\n---\n".join(msgs) + f"\n\n{url}"
+                        send_line_notification(line_user_id, combined_msg)
 
-
-# ========================================================
-# AIによるオススメ商品提案 API
-# ========================================================
 @app.route("/api/recommendations", methods=["GET"])
 @login_required
 def api_recommendations():
     if not project_client or not agent:
         return jsonify({"error": "AI Agentが設定されていません"}), 500
-
-    logger.info("🤖 AIにおすすめ商品をリクエスト中...")
-
     try:
         thread = project_client.agents.threads.create()
-        
-        # AIへのプロンプト（JSON形式で確実に出力させる）
         prompt = """
         あなたはプレミアムバンダイ（ガンプラ、METAL BUILD、仮面ライダーCSM、アニメグッズなど）の専門家であり、転売対策やコレクター向けの在庫監視のアドバイザーです。
-        現在、需要が高く、在庫監視をしておくべき（再販が期待される、または人気で即完売した）プレミアムバンダイの商品を3つ提案してください。
-        
+        現在、需要が高く、在庫監視をしておくべきプレミアムバンダイの商品を3つ提案してください。
         必ず以下のJSON配列フォーマットのみを出力してください（Markdownの ```json 等の装飾は絶対に含めないでください）。
-        [
-          {
-            "title": "正確な商品名",
-            "url": "プレミアムバンダイの実際のURL ([https://p-bandai.jp/item/item-で始まるもの](https://p-bandai.jp/item/item-で始まるもの))",
-            "reason": "おすすめの理由（50文字程度。なぜ監視すべきか）"
-          }
-        ]
+        [ { "title": "正確な商品名", "url": "https://p-bandai.jp/item/item-で始まるもの", "reason": "おすすめの理由" } ]
         """
-        
-        project_client.agents.messages.create(
-            thread_id=thread.id, role="user", content=prompt
-        )
-        
-        project_client.agents.runs.create_and_process(
-            thread_id=thread.id, agent_id=agent.id
-        )
-        
-        messages = project_client.agents.messages.list(
-            thread_id=thread.id, order=ListSortOrder.DESCENDING
-        )
+        project_client.agents.messages.create(thread_id=thread.id, role="user", content=prompt)
+        project_client.agents.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
+        messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
 
         for m in messages:
             if m.role == "assistant" and m.text_messages:
                 text = m.text_messages[0].text.value
                 try:
-                    # AIの返答からJSON配列部分だけを抽出
                     match = re.search(r"\[.*\]", text, re.DOTALL)
                     if match:
                         recommendations = json.loads(match.group())
                         return jsonify({"recommendations": recommendations})
                 except Exception as parse_err:
-                    logger.error(f"JSONパースエラー: {parse_err} \nAIの生テキスト: {text}")
                     pass
-        
         return jsonify({"error": "AIが正しいフォーマットで返答しませんでした"}), 500
-
     except Exception as e:
-        logger.error(f"AI提案エラー: {e}")
         return jsonify({"error": str(e)}), 500
     
-    
-# ========================================================
-# URL一括登録エンドポイント (JSON版・AI提案一括登録用)
-# ========================================================
 @app.route("/api/watchlist/bulk", methods=["POST"])
 @login_required
 def api_watchlist_bulk():
     if not db:
         return jsonify({"error": "データベースに接続できません"}), 500
-
     urls = request.json.get("urls", [])
     if not urls:
         return jsonify({"error": "URLが指定されていません"}), 400
-
     if len(urls) > 5:
         return jsonify({"error": "一度に登録できるのは最大5件までです"}), 400
 
     uid = request.user["uid"]
-    results = {
-        "success": [],
-        "errors": []
-    }
-    
+    results = {"success": [], "errors": []}
     watchlist_ref = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("watchlist")
 
     for index, url in enumerate(urls):
-        if not url:
-            continue
-
+        if not url: continue
         if not is_allowed_p_bandai_or_test_url(url):
             results["errors"].append(f"{index+1}件目: 対象外のURLです")
             continue
-
-        # AIは使わず高速にスクレイピングのみ
         scraped = scrape_premium_bandai(url)
-        
         if scraped:
             try:
                 watchlist_ref.add({
@@ -1182,19 +1127,12 @@ def api_watchlist_bulk():
                 results["errors"].append(f"{index+1}件目: DB保存エラー {str(e)}")
         else:
             results["errors"].append(f"{index+1}件目: 商品情報の取得に失敗しました")
-
     return jsonify({
         "message": f"{len(results['success'])}件 登録しました",
         "results": results
     })
 
-
-# ========================================================
-# テスト用ダミーページ (E2Eテスト用)
-# 本番環境では自動的に無効化する
-# ========================================================
 if not IS_PRODUCTION:
-    # メモリ上で擬似在庫状態を管理
     MOCK_ITEM_IN_STOCK = False
 
     @app.route("/test-item")
@@ -1202,8 +1140,6 @@ if not IS_PRODUCTION:
         global MOCK_ITEM_IN_STOCK
         stock_mark = "○" if MOCK_ITEM_IN_STOCK else "×"
         status_text = "🟢 在庫あり" if MOCK_ITEM_IN_STOCK else "🔴 在庫なし"
-        
-        # scrape_premium_bandai() の正規表現に引っかかるように変数を配置
         html = f"""
         <!DOCTYPE html>
         <html lang="ja">
@@ -1229,7 +1165,6 @@ if not IS_PRODUCTION:
                     このページのURLを監視リストに登録して、システム全体の動作テストを行えます。
                 </p>
             </div>
-            
             <script>
                 var data = {{ price: '9999' }};
                 var orderstock_list = {{"item_id_123":"{stock_mark}"}};
@@ -1245,16 +1180,8 @@ if not IS_PRODUCTION:
         MOCK_ITEM_IN_STOCK = not MOCK_ITEM_IN_STOCK
         return redirect(url_for('test_item_page'))
 
-# ==========================
-# 起動
-# ==========================
 if __name__ == "__main__":
-    import os
-
-    # 環境変数PORTがあればそれを使う（App Runner用）
-    # なければ8080を使う（ローカル・EC2テスト用）
     port = int(os.environ.get("PORT", 8080))
-
     scheduler.add_job(
         check_watchlist_job,
         trigger="interval",
@@ -1263,5 +1190,4 @@ if __name__ == "__main__":
         replace_existing=True,
     )
     scheduler.start()
-    # 開発環境でVSCodeなどから実行する場合
     app.run(host="0.0.0.0", port=port, debug=False)

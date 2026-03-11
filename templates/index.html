@@ -53,12 +53,12 @@
         <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
                 <h3 class="text-[11px] font-bold text-blue-400">システムアップデート情報</h3>
-                <span class="text-[9px] text-slate-500">2026/02/22</span>
+                <span class="text-[9px] text-slate-500">2026/03/12</span>
             </div>
             <ul class="text-[10px] text-slate-300 space-y-1 list-disc list-inside">
+                <li><span class="text-emerald-400 font-bold">New!</span> 利ザヤチェッカーのデータ取得元をラクマ(fril.jp)へ変更しました。</li>
                 <li><span class="text-emerald-400 font-bold">New!</span> ヤフオク監視機能を新設し、プレバンとタブを分離しました。</li>
                 <li>設定画面を独立したタブに移動しました。</li>
-                <li>近日中：バックグラウンドでの自動スクレイピング＆LINE通知機能を実装予定です。</li>
             </ul>
         </div>
       </div>
@@ -96,7 +96,7 @@
               <div class="absolute -top-10 -right-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
               <h2 class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2"><i class="fas fa-robot mr-1"></i> AIせどり鑑定士</h2>
-              <p class="text-[11px] text-slate-400 mb-6">ヤフオクの直近の落札相場を分析し、メルカリ等での仕入れ目安と検品時の注意点をAIがアドバイスします。</p>
+              <p class="text-[11px] text-slate-400 mb-6">ヤフオクの直近の落札相場を分析し、ラクマやリサイクルショップ等での仕入れ目安と検品時の注意点をAIがアドバイスします。</p>
               
               <div class="flex flex-col md:flex-row gap-3 relative z-10">
                   <div class="flex-1 relative">
@@ -194,8 +194,8 @@
               <i class="fas fa-coins text-green-400 text-sm"></i>
             </div>
             <div>
-              <h2 class="text-sm font-bold text-white">利ザヤチェッカー</h2>
-              <p class="text-[10px] text-slate-400">ヤフオク落札相場 × メルカリ最安値で仕入れ利益を自動計算します</p>
+              <h2 class="text-sm font-bold text-white">利ザヤチェッカー（双方向）</h2>
+              <p class="text-[10px] text-slate-400">ヤフオクとラクマの価格差から、どちらで仕入れてどちらで売るべきか利益を自動計算します</p>
             </div>
           </div>
 
@@ -205,7 +205,7 @@
               <input id="profit-keyword" type="text" placeholder="例: ONKYO FR-X7" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500/50 transition-colors placeholder:text-slate-600 text-white">
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">仕入れ価格（手動・円）<span class="text-slate-500 font-normal ml-1">省略でメルカリ最安値を使用</span></label>
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">基準価格（手動・円）<span class="text-slate-500 font-normal ml-1">省略時はラクマ最安値を使用</span></label>
               <input id="profit-manual-buy" type="number" placeholder="例: 3000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500/50 transition-colors placeholder:text-slate-600 text-white">
             </div>
           </div>
@@ -228,23 +228,29 @@
 
         <div id="profit-result" class="hidden space-y-4 animate-in fade-in duration-300">
 
-          <!-- メルカリ取得状況バナー -->
-          <div id="profit-mercari-banner" class="hidden rounded-xl px-4 py-3 border text-xs"></div>
+          <!-- ラクマ取得状況バナー -->
+          <div id="profit-rakuma-banner" class="hidden rounded-xl px-4 py-3 border text-xs"></div>
 
           <!-- 相場サマリ -->
-          <div class="grid grid-cols-3 gap-3">
+          <div class="grid grid-cols-3 gap-3 mb-5">
+            <div class="glass rounded-xl p-4 text-center border border-cyan-500/20 bg-cyan-900/10">
+              <p class="text-[9px] text-cyan-400 mb-1">ラクマ最安値 (基準)</p>
+              <p id="pr-rakuma-min" class="text-lg font-mono text-cyan-400 font-bold">---</p>
+            </div>
             <div class="glass rounded-xl p-4 text-center border border-white/5">
-              <p class="text-[9px] text-slate-400 mb-1">ヤフオク 平均落札</p>
+              <p class="text-[9px] text-slate-400 mb-1">ヤフオク 平均</p>
               <p id="pr-yahoo-avg" class="text-lg font-mono text-white font-bold">---</p>
             </div>
             <div class="glass rounded-xl p-4 text-center border border-white/5">
-              <p class="text-[9px] text-slate-400 mb-1">ヤフオク 最高落札</p>
+              <p class="text-[9px] text-slate-400 mb-1">ヤフオク 最高</p>
               <p id="pr-yahoo-max" class="text-lg font-mono text-white font-bold">---</p>
             </div>
-            <div class="glass rounded-xl p-4 text-center border border-white/5">
-              <p class="text-[9px] text-slate-400 mb-1">メルカリ最安値</p>
-              <p id="pr-mercari-min" class="text-lg font-mono text-cyan-400 font-bold">---</p>
-            </div>
+          </div>
+
+          <!-- 方向切り替えタブ -->
+          <div class="flex bg-slate-950 rounded-lg p-1 mb-4 border border-slate-800 shadow-inner">
+            <button id="dir-r2y" class="flex-1 py-2 text-[11px] font-bold rounded-md bg-emerald-600 text-white transition-all shadow-md"><i class="fas fa-arrow-right mr-1"></i>ラクマで仕入 ➔ ヤフオクで販売</button>
+            <button id="dir-y2r" class="flex-1 py-2 text-[11px] font-bold rounded-md text-slate-400 hover:text-white transition-all"><i class="fas fa-arrow-right mr-1"></i>ヤフオクで仕入 ➔ ラクマで販売</button>
           </div>
 
           <!-- 利益計算カード（平均・最高 2枚） -->
@@ -559,7 +565,7 @@
                                 <div class="text-[10px] text-white font-medium line-clamp-2 leading-tight">${item.title}</div>
                             </td>
                             <td class="py-3 px-2 text-right">
-                                <span class="text-[10px] font-mono text-white font-bold">${item.price}円</span>
+                                <span class="text-[10px] font-mono text-white font-bold">${item.price}</span>
                             </td>
                             <td class="py-3 pr-2 text-right">
                                 <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="text-yellow-500 hover:text-yellow-400 text-[10px] inline-flex items-center justify-center p-2 hover:bg-yellow-500/10 rounded-full transition-colors">
@@ -1304,11 +1310,73 @@
         // ========================================================
         const profitBtn = document.getElementById("profit-btn");
         const profitResult = document.getElementById("profit-result");
-        const profitMercariBanner = document.getElementById("profit-mercari-banner");
+        const profitRakumaBanner = document.getElementById("profit-rakuma-banner");
+
+        // UI用状態保持
+        let currentProfitCtx = null;
+        let currentProfitDir = 'r2y'; // 'r2y' (ラクマ->ヤフオク) or 'y2r' (ヤフオク->ラクマ)
+
+        const dirR2YBtn = document.getElementById("dir-r2y");
+        const dirY2RBtn = document.getElementById("dir-y2r");
+
+        if (dirR2YBtn && dirY2RBtn) {
+            dirR2YBtn.onclick = () => {
+                currentProfitDir = 'r2y';
+                dirR2YBtn.className = "flex-1 py-2 text-[11px] font-bold rounded-md bg-emerald-600 text-white transition-all shadow-md";
+                dirY2RBtn.className = "flex-1 py-2 text-[11px] font-bold rounded-md text-slate-400 hover:text-white transition-all";
+                renderProfitCards();
+            };
+            dirY2RBtn.onclick = () => {
+                currentProfitDir = 'y2r';
+                dirY2RBtn.className = "flex-1 py-2 text-[11px] font-bold rounded-md bg-blue-600 text-white transition-all shadow-md";
+                dirR2YBtn.className = "flex-1 py-2 text-[11px] font-bold rounded-md text-slate-400 hover:text-white transition-all";
+                renderProfitCards();
+            };
+        }
 
         function fmt(n) {
             if (n == null || isNaN(n)) return "---";
             return Number(n).toLocaleString();
+        }
+
+        // フロントエンド側での利益計算処理
+        function calcLocalProfit(sellPrice, buyPrice, shipBuy, shipSell) {
+            const fee = Math.floor(sellPrice * 0.10); // 手数料10%
+            const profit = sellPrice - fee - shipSell - buyPrice - shipBuy;
+            const roi = buyPrice > 0 ? (profit / buyPrice) * 100 : 0;
+            const profitRate = sellPrice > 0 ? (profit / sellPrice) * 100 : 0;
+            
+            let verdict = "NO";
+            let verdict_label = "赤字・対象外";
+            if (profit >= 3000 && roi >= 20) { verdict = "BUY"; verdict_label = "激アツ！利益確定"; }
+            else if (profit > 0) { verdict = "CONSIDER"; verdict_label = "利益あり"; }
+
+            return { profit, sell_price: sellPrice, buy_price: buyPrice, roi: roi.toFixed(1), profit_rate: profitRate.toFixed(1), verdict, verdict_label };
+        }
+
+        function renderProfitCards() {
+            if (!currentProfitCtx) return;
+            const ctx = currentProfitCtx;
+            const basePrice = ctx.manualBuy || ctx.rakumaMin || 0; // ラクマ最安値 or 手動入力
+            const yahooAvg = ctx.yahooAvg;
+            const yahooMax = ctx.yahooMax;
+            const shipBuy = ctx.shipBuy;
+            const shipSell = ctx.shipSell;
+
+            if (currentProfitDir === 'r2y') {
+                // ラクマ仕入 -> ヤフオク販売
+                const avgData = calcLocalProfit(yahooAvg, basePrice, shipBuy, shipSell);
+                const maxData = calcLocalProfit(yahooMax, basePrice, shipBuy, shipSell);
+                document.getElementById("pr-card-avg").innerHTML = buildProfitCard("ヤフオク平均 で売れた場合", avgData);
+                document.getElementById("pr-card-max").innerHTML = buildProfitCard("ヤフオク最高 で売れた場合", maxData);
+            } else {
+                // ヤフオク仕入 -> ラクマ販売
+                // ラクマの価格（basePrice）を販売価格とし、ヤフオク平均・最高を仕入れ価格とする
+                const avgData = calcLocalProfit(basePrice, yahooAvg, shipBuy, shipSell);
+                const maxData = calcLocalProfit(basePrice, yahooMax, shipBuy, shipSell);
+                document.getElementById("pr-card-avg").innerHTML = buildProfitCard("ヤフオク平均 で仕入れた場合", avgData);
+                document.getElementById("pr-card-max").innerHTML = buildProfitCard("ヤフオク最高 で仕入れた場合", maxData);
+            }
         }
 
         function buildProfitCard(label, data) {
@@ -1320,7 +1388,7 @@
                     : "text-red-400 border-red-500/30 bg-red-500/10";
             return `
                 <div class="space-y-3">
-                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${label} で売れた場合</p>
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${label}</p>
                   <p class="text-2xl font-mono font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}">${isProfit ? '+' : ''}¥${fmt(data.profit)}</p>
                   <div class="grid grid-cols-2 gap-2 text-[10px]">
                     <div class="bg-slate-950 rounded-lg p-2">
@@ -1376,31 +1444,44 @@
                 if (!res.ok || data.error) throw new Error(data.error || "サーバーエラー");
                 if (!data.yahoo_data) throw new Error("ヤフオクデータが取得できませんでした");
 
-                // ---- メルカリバナー ----
-                if (data.mercari_data && data.mercari_data.min_price != null) {
-                    document.getElementById("pr-mercari-min").textContent = "¥" + fmt(data.mercari_data.min_price);
-                    profitMercariBanner.className = "rounded-xl px-4 py-3 border text-xs text-cyan-300 bg-cyan-900/20 border-cyan-500/30";
-                    profitMercariBanner.innerHTML = '<i class="fas fa-check-circle mr-1"></i> メルカリ最安値を仕入れ価格として使用しました（' + fmt(data.mercari_data.min_price) + ' 円）';
-                    profitMercariBanner.classList.remove("hidden");
+                // APIレスポンスからフロントエンド計算用の数値を抽出して保持
+                const yahooAvgNum = Number(data.yahoo_data.avg_price.replace(/,/g, ''));
+                const yahooMaxNum = Number(data.yahoo_data.max_price.replace(/,/g, ''));
+                const rakumaMinNum = data.rakuma_data && data.rakuma_data.min_price != null ? Number(data.rakuma_data.min_price) : null;
+                
+                currentProfitCtx = {
+                    yahooAvg: yahooAvgNum,
+                    yahooMax: yahooMaxNum,
+                    rakumaMin: rakumaMinNum,
+                    manualBuy: manualBuy ? Number(manualBuy) : null,
+                    shipBuy: Number(shipBuy),
+                    shipSell: Number(shipSell)
+                };
+
+                // ---- ラクマバナー ----
+                if (rakumaMinNum != null) {
+                    document.getElementById("pr-rakuma-min").textContent = "¥" + fmt(rakumaMinNum);
+                    profitRakumaBanner.className = "rounded-xl px-4 py-3 border text-xs text-cyan-300 bg-cyan-900/20 border-cyan-500/30";
+                    profitRakumaBanner.innerHTML = '<i class="fas fa-check-circle mr-1"></i> ラクマ最安値を基準価格として取得しました（' + fmt(rakumaMinNum) + ' 円）';
+                    profitRakumaBanner.classList.remove("hidden");
                 } else {
-                    document.getElementById("pr-mercari-min").textContent = "取得不可";
+                    document.getElementById("pr-rakuma-min").textContent = "取得不可";
                     if (manualBuy) {
-                        profitMercariBanner.className = "rounded-xl px-4 py-3 border text-xs text-yellow-300 bg-yellow-900/20 border-yellow-500/30";
-                        profitMercariBanner.innerHTML = '<i class="fas fa-info-circle mr-1"></i> メルカリ価格取得不可。入力した手動価格 ¥' + fmt(Number(manualBuy)) + ' を使用しました。';
+                        profitRakumaBanner.className = "rounded-xl px-4 py-3 border text-xs text-yellow-300 bg-yellow-900/20 border-yellow-500/30";
+                        profitRakumaBanner.innerHTML = '<i class="fas fa-info-circle mr-1"></i> ラクマ価格取得不可。入力した手動価格 ¥' + fmt(Number(manualBuy)) + ' を基準に使用しました。';
                     } else {
-                        profitMercariBanner.className = "rounded-xl px-4 py-3 border text-xs text-red-300 bg-red-900/20 border-red-500/30";
-                        profitMercariBanner.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> メルカリ価格を取得できませんでした。「仕入れ価格（手動）」に金額を入力すると利益を計算できます。';
+                        profitRakumaBanner.className = "rounded-xl px-4 py-3 border text-xs text-red-300 bg-red-900/20 border-red-500/30";
+                        profitRakumaBanner.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> ラクマ価格を取得できませんでした。「基準価格（手動）」を入力すると計算できます。';
                     }
-                    profitMercariBanner.classList.remove("hidden");
+                    profitRakumaBanner.classList.remove("hidden");
                 }
 
                 // ---- Yahoo相場 ----
-                document.getElementById("pr-yahoo-avg").textContent = "¥" + fmt(data.yahoo_data.avg_price.replace(/,/g, ''));
-                document.getElementById("pr-yahoo-max").textContent = "¥" + fmt(data.yahoo_data.max_price.replace(/,/g, ''));
+                document.getElementById("pr-yahoo-avg").textContent = "¥" + fmt(yahooAvgNum);
+                document.getElementById("pr-yahoo-max").textContent = "¥" + fmt(yahooMaxNum);
 
-                // ---- 利益カード ----
-                document.getElementById("pr-card-avg").innerHTML = buildProfitCard("ヤフオク平均価格", data.profit_avg);
-                document.getElementById("pr-card-max").innerHTML = buildProfitCard("ヤフオク最高価格", data.profit_max);
+                // ---- 利益カード描画（現在選択中のタブ方向で） ----
+                renderProfitCards();
 
                 // ---- 落札履歴 ----
                 const items = (data.yahoo_data.items || []).slice(0, 30);
