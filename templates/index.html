@@ -17,6 +17,7 @@
         .btn-ghost:hover { background:rgba(255,255,255,0.1); }
         .loader { border-top-color: #3b82f6; animation: spinner 0.6s linear infinite; }
         @keyframes spinner { to { transform: rotate(360deg); } }
+        /* スクロールバーのカスタマイズ */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
@@ -73,6 +74,9 @@
         <button id="tab-keyword" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
             <i class="fas fa-key mr-1"></i> キーワードリサーチ
         </button>
+        <button id="tab-profit" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+            <i class="fas fa-coins mr-1"></i> 利ザヤチェッカー
+        </button>
         <button id="tab-yahoo" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
             <i class="fas fa-gavel mr-1"></i> ヤフオク監視
         </button>
@@ -87,60 +91,13 @@
 
     <main class="max-w-4xl mx-auto space-y-8">
 
-      <!-- ========== AI相場鑑定 ========== -->
       <div id="view-scout" class="space-y-8 animate-in fade-in duration-300">
-
-          <!-- ★ 電脳せどり 利ザヤチェッカー -->
-          <section class="glass rounded-2xl p-6 shadow-2xl border border-emerald-500/20 relative overflow-hidden">
-              <div class="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-              <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-cyan-500 rounded-l-2xl"></div>
-
-              <div class="flex items-center justify-between mb-1">
-                  <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest"><i class="fas fa-chart-line mr-1"></i> 電脳せどり 利ザヤチェッカー</h2>
-                  <span class="text-[8px] bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">メルカリ仕入れ → ヤフオク販売</span>
-              </div>
-              <p class="text-[11px] text-slate-400 mb-4">メルカリの最安出品価格で仕入れ、ヤフオクの平均落札価格で売った場合の純利益・ROIをリアルタイム計算します。</p>
-
-              <!-- 手数料・送料設定 -->
-              <div class="mb-4 p-3 bg-slate-900/60 border border-slate-700 rounded-xl">
-                  <p class="text-[10px] font-bold text-slate-400 mb-2"><i class="fas fa-sliders-h mr-1"></i> 費用設定</p>
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div>
-                          <label class="text-[9px] text-slate-500 block mb-1">ヤフオク送料 (円)</label>
-                          <input id="profit-shipping-sell" type="number" value="600" min="0" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50">
-                      </div>
-                      <div>
-                          <label class="text-[9px] text-slate-500 block mb-1">メルカリ送料 (円)</label>
-                          <input id="profit-shipping-buy" type="number" value="600" min="0" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50">
-                      </div>
-                      <div>
-                          <label class="text-[9px] text-slate-500 block mb-1">ヤフオク手数料</label>
-                          <div class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-500">8.8%（固定）</div>
-                      </div>
-                      <div>
-                          <label class="text-[9px] text-slate-500 block mb-1">手動仕入れ値 (任意)</label>
-                          <input id="profit-manual-buy" type="number" placeholder="空欄=メルカリ自動" min="0" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500/50 placeholder:text-slate-600">
-                      </div>
-                  </div>
-              </div>
-
-              <div class="flex flex-col md:flex-row gap-3 relative z-10">
-                  <div class="flex-1 relative">
-                      <input id="profit-input" type="text" placeholder="検索キーワード (例: CSM ファイズギア)" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-4 py-4 text-sm focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-slate-600">
-                  </div>
-                  <button id="profit-btn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-8 py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] whitespace-nowrap">
-                      <i class="fas fa-chart-line"></i> 利ザヤを計算
-                  </button>
-              </div>
-
-              <div id="profit-result" class="hidden mt-5"></div>
-          </section>
-
-          <!-- 既存：AIせどり鑑定士 -->
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
               <div class="absolute -top-10 -right-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
               <h2 class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2"><i class="fas fa-robot mr-1"></i> AIせどり鑑定士</h2>
               <p class="text-[11px] text-slate-400 mb-6">ヤフオクの直近の落札相場を分析し、メルカリ等での仕入れ目安と検品時の注意点をAIがアドバイスします。</p>
+              
               <div class="flex flex-col md:flex-row gap-3 relative z-10">
                   <div class="flex-1 relative">
                       <input id="scout-input" type="text" placeholder="検索キーワード (例: CSM ファイズギア ver.2)" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-yellow-500/50 transition-colors placeholder:text-slate-600">
@@ -152,16 +109,19 @@
                       <i class="fas fa-gavel"></i> 相場を鑑定
                   </button>
               </div>
-              <div id="scout-result" class="hidden mt-6 bg-slate-900/50 border border-yellow-500/20 rounded-xl p-5 shadow-inner flex flex-col"></div>
+
+              <div id="scout-result" class="hidden mt-6 bg-slate-900/50 border border-yellow-500/20 rounded-xl p-5 shadow-inner flex flex-col">
+                  </div>
           </section>
       </div>
 
-      <!-- ========== 開催中追跡 ========== -->
       <div id="view-active" class="hidden space-y-8 animate-in fade-in duration-300">
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
               <div class="absolute -top-10 -right-10 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
               <h2 class="text-xs font-bold text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-satellite-dish mr-1"></i> 開催中オークション追跡</h2>
               <p class="text-[11px] text-slate-400 mb-6">現在ヤフオクに出品されている商品の現在価格・即決価格・残り時間をリアルタイムに検索します。気になる商品はウォッチリストに追加して一元管理できます。</p>
+              
               <div class="flex flex-col md:flex-row gap-3 relative z-10">
                   <div class="flex-1 relative">
                       <input id="active-input" type="text" placeholder="検索キーワードを入力" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-purple-500/50 transition-colors placeholder:text-slate-600">
@@ -170,29 +130,17 @@
                       <i class="fas fa-search"></i> 現在の出品を探す
                   </button>
               </div>
-              <div id="active-result" class="hidden mt-6 bg-slate-900/50 border border-purple-500/20 rounded-xl p-5 shadow-inner flex flex-col"></div>
-          </section>
-              </div>
 
-      <!-- ========== キーワードリサーチ ========== -->
+              <div id="active-result" class="hidden mt-6 bg-slate-900/50 border border-purple-500/20 rounded-xl p-5 shadow-inner flex flex-col">
+                  </div>
+          </section>
+      </div>
+
       <div id="view-keyword" class="hidden space-y-8 animate-in fade-in duration-300">
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
               <div class="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
               <h2 class="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-2"><i class="fas fa-key mr-1"></i> ヤフオク検索キーワードリサーチャー</h2>
               <p class="text-[11px] text-slate-400 mb-4">シードキーワードを入力すると、関連キーワード候補を取得します。<strong class="text-amber-400/90">「稼ぎやすさ・トレンド重視」</strong>をオンにすると、<strong>現在の日本で需要が高く・利益が出やすい</strong>キーワード・商品を優先して候補に出します。</p>
-
-              <!-- ★ 今日のおすすめシードキーワード -->
-              <div class="mb-4 relative z-10">
-                  <button id="suggest-seeds-btn" class="text-[11px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-500/30 px-4 py-2 rounded-full hover:bg-emerald-500/20 transition-all flex items-center gap-2">
-                      <i class="fas fa-fire"></i> 今狙いやすいシードキーワードをAIに提案させる
-                      <div id="seeds-loader" class="hidden loader ease-linear rounded-full border-2 border-t-2 border-emerald-400 h-3 w-3"></div>
-                  </button>
-                  <div id="seeds-result" class="hidden mt-3 p-4 bg-emerald-900/10 border border-emerald-500/20 rounded-xl">
-                      <h4 class="text-[10px] font-bold text-emerald-400 mb-2"><i class="fas fa-fire mr-1"></i> 今おすすめのシードキーワード（クリックでセット）</h4>
-                      <ul id="seeds-list" class="flex flex-wrap gap-2"></ul>
-                  </div>
-              </div>
-
               <div class="flex flex-col md:flex-row gap-3 relative z-10">
                   <div class="flex-1 relative">
                       <input id="keyword-seed-input" type="text" placeholder="例: CSM ファイズギア、ガンプラ、仮面ライダー" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-cyan-500/50 transition-colors placeholder:text-slate-600">
@@ -233,11 +181,100 @@
                       <h3 class="text-[11px] font-bold text-cyan-400 mb-3"><i class="fas fa-layer-group mr-1"></i> ジャンル別キーワード</h3>
                       <div id="keyword-by-genre-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
                   </div>
-                  </div>
+              </div>
           </section>
       </div>
 
-      <!-- ========== ヤフオク監視 ========== -->
+
+      <div id="view-profit" class="hidden space-y-6 animate-in fade-in duration-300">
+        <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5 relative overflow-hidden">
+          <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 via-emerald-400 to-teal-500"></div>
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-9 h-9 rounded-xl bg-green-500/20 border border-green-500/30 flex items-center justify-center shrink-0">
+              <i class="fas fa-coins text-green-400 text-sm"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-white">利ザヤチェッカー</h2>
+              <p class="text-[10px] text-slate-400">ヤフオク落札相場 × メルカリ最安値で仕入れ利益を自動計算します</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">検索キーワード</label>
+              <input id="profit-keyword" type="text" placeholder="例: ONKYO FR-X7" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500/50 transition-colors placeholder:text-slate-600 text-white">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">仕入れ価格（手動・円）<span class="text-slate-500 font-normal ml-1">省略でメルカリ最安値を使用</span></label>
+              <input id="profit-manual-buy" type="number" placeholder="例: 3000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500/50 transition-colors placeholder:text-slate-600 text-white">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mb-5">
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">送料（仕入れ）</label>
+              <input id="profit-ship-buy" type="number" value="600" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500/50 transition-colors text-white">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">送料（販売）</label>
+              <input id="profit-ship-sell" type="number" value="600" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500/50 transition-colors text-white">
+            </div>
+          </div>
+
+          <button id="profit-btn" class="w-full bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(34,197,94,0.2)]">
+            <i class="fas fa-calculator"></i> 利益を計算する
+          </button>
+        </section>
+
+        <div id="profit-result" class="hidden space-y-4 animate-in fade-in duration-300">
+
+          <!-- メルカリ取得状況バナー -->
+          <div id="profit-mercari-banner" class="hidden rounded-xl px-4 py-3 border text-xs"></div>
+
+          <!-- 相場サマリ -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="glass rounded-xl p-4 text-center border border-white/5">
+              <p class="text-[9px] text-slate-400 mb-1">ヤフオク 平均落札</p>
+              <p id="pr-yahoo-avg" class="text-lg font-mono text-white font-bold">---</p>
+            </div>
+            <div class="glass rounded-xl p-4 text-center border border-white/5">
+              <p class="text-[9px] text-slate-400 mb-1">ヤフオク 最高落札</p>
+              <p id="pr-yahoo-max" class="text-lg font-mono text-white font-bold">---</p>
+            </div>
+            <div class="glass rounded-xl p-4 text-center border border-white/5">
+              <p class="text-[9px] text-slate-400 mb-1">メルカリ最安値</p>
+              <p id="pr-mercari-min" class="text-lg font-mono text-cyan-400 font-bold">---</p>
+            </div>
+          </div>
+
+          <!-- 利益計算カード（平均・最高 2枚） -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div id="pr-card-avg" class="glass rounded-xl p-5 border border-white/5"></div>
+            <div id="pr-card-max" class="glass rounded-xl p-5 border border-white/5"></div>
+          </div>
+
+          <!-- 落札履歴テーブル -->
+          <div class="glass rounded-xl border border-white/5 overflow-hidden">
+            <div class="px-4 py-3 border-b border-white/5 flex items-center gap-2">
+              <i class="fas fa-history text-slate-400 text-xs"></i>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">直近の落札履歴</span>
+            </div>
+            <div class="max-h-64 overflow-y-auto custom-scrollbar">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0">
+                  <tr>
+                    <th class="py-2 px-3">商品名</th>
+                    <th class="py-2 px-3 text-right w-24">落札価格</th>
+                    <th class="py-2 px-3 text-right w-12">詳細</th>
+                  </tr>
+                </thead>
+                <tbody id="pr-items-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="view-yahoo" class="hidden space-y-8 animate-in fade-in duration-300">
           <section class="space-y-4">
             <div class="flex items-center justify-between px-2">
@@ -250,7 +287,6 @@
           </section>
       </div>
 
-      <!-- ========== プレバン(旧) ========== -->
       <div id="view-monitor" class="hidden space-y-8 animate-in fade-in duration-300 opacity-80">
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
@@ -264,6 +300,7 @@
                     </button>
                 </div>
             </div>
+
             <div id="ai-recs-container" class="hidden mb-4 p-4 bg-emerald-900/10 border border-emerald-500/20 rounded-xl">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="text-xs font-bold text-emerald-400"><i class="fas fa-sparkles mr-1"></i>AIが選んだ注目商品</h3>
@@ -271,6 +308,7 @@
                 </div>
                 <div id="ai-recs-list" class="flex flex-col gap-2"></div>
             </div>
+
             <div class="flex flex-col md:flex-row gap-3">
               <div class="flex-1 relative">
                 <input id="url-input" type="text" placeholder="https://p-bandai.jp/item/item-..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600">
@@ -282,6 +320,7 @@
                 <i class="fas fa-search"></i>調査
               </button>
             </div>
+            
             <div class="mt-4 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
                     <input type="file" id="csv-input" accept=".csv" class="hidden">
@@ -291,6 +330,7 @@
                 </div>
             </div>
           </section>
+
           <section class="space-y-4">
             <div class="flex items-center justify-between px-2">
               <div class="flex items-center gap-4">
@@ -302,16 +342,17 @@
           </section>
       </div>
 
-      <!-- ========== 設定 ========== -->
       <div id="view-settings" class="hidden space-y-8 animate-in fade-in duration-300">
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
               <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6"><i class="fas fa-cog mr-1"></i> システム設定</h2>
+              
               <div class="p-6 border border-white/5 bg-slate-900/50 rounded-xl">
                   <h3 class="text-sm font-bold text-emerald-400 mb-2"><i class="fab fa-line mr-1"></i> LINE連携設定</h3>
                   <p class="text-[11px] text-slate-400 mb-5 leading-relaxed">
                       ヤフオクの予算超過や終了前通知、プレバンの在庫変動を受け取るには、LINE USER IDを登録してください。<br>
                       <span class="text-blue-400">※LINE Developers等のプロファイルから取得したID（Uから始まる文字列）を入力します。</span>
                   </p>
+                  
                   <div class="flex flex-col sm:flex-row gap-3">
                       <div class="flex flex-1 gap-2">
                           <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 text-white">
@@ -322,10 +363,10 @@
                       </button>
                   </div>
               </div>
+              
               </section>
       </div>
 
-      <!-- プレビューモーダル -->
       <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
         <div class="glass rounded-3xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl border border-white/10">
           <div id="preview-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
@@ -361,6 +402,8 @@
         const loginOverlay = document.getElementById("login-overlay");
         const loginBtn = document.getElementById("login-btn");
         const logoutBtn = document.getElementById("logout-btn");
+        
+        // Settings Elements
         const saveLineBtn = document.getElementById("save-line-btn");
         const testLineBtn = document.getElementById("test-line-btn");
         
@@ -368,12 +411,15 @@
         const tabScout = document.getElementById("tab-scout");
         const tabActive = document.getElementById("tab-active");
         const tabKeyword = document.getElementById("tab-keyword");
+        const tabProfit = document.getElementById("tab-profit");
         const tabYahoo = document.getElementById("tab-yahoo"); 
         const tabMonitor = document.getElementById("tab-monitor");
         const tabSettings = document.getElementById("tab-settings");
+        
         const viewScout = document.getElementById("view-scout");
         const viewActive = document.getElementById("view-active");
         const viewKeyword = document.getElementById("view-keyword");
+        const viewProfit = document.getElementById("view-profit");
         const viewYahoo = document.getElementById("view-yahoo"); 
         const viewMonitor = document.getElementById("view-monitor");
         const viewSettings = document.getElementById("view-settings");
@@ -395,7 +441,7 @@
         const activeBtn = document.getElementById("active-btn");
         const activeResult = document.getElementById("active-result");
 
-        // Monitor Elements
+        // Monitor Elements (Old)
         const urlInput = document.getElementById("url-input");
         const inspectBtn = document.getElementById("inspect-btn");
         const inputLoader = document.getElementById("input-loader");
@@ -415,13 +461,15 @@
         let currentAiRecs = []; 
         window.currentActiveItems = []; 
 
-        // --- Tab Switching ---
+        // --- Tab Switching Logic ---
         function switchTab(tabName) {
             const baseClass = "px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
+            
             tabMonitor.className = baseClass + " opacity-50 hover:opacity-100";
             tabScout.className = baseClass;
             tabActive.className = baseClass;
             tabKeyword.className = baseClass;
+            tabProfit.className = baseClass;
             tabYahoo.className = baseClass;
             tabSettings.className = "px-4 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
 
@@ -429,6 +477,7 @@
             viewScout.classList.add('hidden');
             viewActive.classList.add('hidden');
             viewKeyword.classList.add('hidden');
+            viewProfit.classList.add('hidden');
             viewYahoo.classList.add('hidden');
             viewSettings.classList.add('hidden');
 
@@ -444,6 +493,9 @@
             } else if (tabName === 'keyword') {
                 tabKeyword.className = "px-5 py-3 text-sm font-bold text-cyan-400 border-b-2 border-cyan-500 transition-colors whitespace-nowrap";
                 viewKeyword.classList.remove('hidden');
+            } else if (tabName === 'profit') {
+                tabProfit.className = "px-5 py-3 text-sm font-bold text-green-400 border-b-2 border-green-500 transition-colors whitespace-nowrap";
+                viewProfit.classList.remove('hidden');
             } else if (tabName === 'yahoo') {
                 tabYahoo.className = "px-5 py-3 text-sm font-bold text-emerald-400 border-b-2 border-emerald-500 transition-colors whitespace-nowrap";
                 viewYahoo.classList.remove('hidden');
@@ -457,186 +509,27 @@
         tabScout.onclick = () => switchTab('scout');
         tabActive.onclick = () => switchTab('active');
         tabKeyword.onclick = () => switchTab('keyword');
+        tabProfit.onclick = () => switchTab('profit');
         tabYahoo.onclick = () => switchTab('yahoo'); 
         tabSettings.onclick = () => switchTab('settings');
+
+        // ▼ 初期表示のタブを強制的に「AI相場鑑定(scout)」にする
         switchTab('scout');
 
-        // --- ユーティリティ ---
-        function escapeAttr(s) {
-            return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-        }
-        function escapeHtml(s) {
-            const div = document.createElement("div");
-            div.textContent = s;
-            return div.innerHTML;
-        }
-
-        // ★ キーワードチップ（コピー・種にする・開催中・鑑定）
-        function makeKeywordChip(kw) {
-            const wrap = document.createElement("li");
-            wrap.className = "flex items-center gap-1 flex-wrap mb-1";
-            wrap.innerHTML = `
-                <span class="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px]">${escapeHtml(kw)}</span>
-                <button type="button" data-action="copy" data-keyword="${escapeAttr(kw)}"
-                    class="px-2 py-0.5 rounded text-[9px] bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors" title="クリップボードにコピー">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <button type="button" data-action="seed" data-keyword="${escapeAttr(kw)}"
-                    class="px-2 py-0.5 rounded text-[9px] bg-cyan-800 hover:bg-cyan-700 text-cyan-200 transition-colors" title="このキーワードをシードにして再検索">
-                    種にする
-                </button>
-                <button type="button" data-action="active" data-keyword="${escapeAttr(kw)}"
-                    class="px-2 py-0.5 rounded text-[9px] bg-purple-600 hover:bg-purple-500 text-white transition-colors">開催中</button>
-                <button type="button" data-action="scout" data-keyword="${escapeAttr(kw)}"
-                    class="px-2 py-0.5 rounded text-[9px] bg-yellow-600 hover:bg-yellow-500 text-slate-900 transition-colors">鑑定</button>
-            `;
-            return wrap;
-        }
-
-        // ========================================
-        // ★ 電脳せどり 利ザヤチェッカー
-        // ========================================
-        const profitInput    = document.getElementById("profit-input");
-        const profitBtn      = document.getElementById("profit-btn");
-        const profitResult   = document.getElementById("profit-result");
-        const profitShipSell = document.getElementById("profit-shipping-sell");
-        const profitShipBuy  = document.getElementById("profit-shipping-buy");
-        const profitManualBuy= document.getElementById("profit-manual-buy");
-
-        function verdictStyle(verdict) {
-            if (verdict === "BUY")      return { bg: "bg-emerald-900/30", border: "border-emerald-500/50", text: "text-emerald-400", glow: "shadow-[0_0_20px_rgba(16,185,129,0.2)]" };
-            if (verdict === "CONSIDER") return { bg: "bg-amber-900/30",   border: "border-amber-500/50",   text: "text-amber-400",   glow: "shadow-[0_0_20px_rgba(245,158,11,0.15)]" };
-            return                             { bg: "bg-red-900/20",     border: "border-red-500/40",     text: "text-red-400",     glow: "" };
-        }
-
-        function renderProfitResult(data) {
-            const p = data.profit_avg;
-            const pm = data.profit_max;
-            const s = verdictStyle(p.verdict);
-            const mercari = data.mercari_data;
-            const mercariItems = (mercari && mercari.items && mercari.items.length > 0)
-                ? mercari.items.slice(0, 5).map(item => `
-                    <tr class="border-b border-white/5 hover:bg-white/[0.02]">
-                        <td class="py-2 px-2 text-[10px] text-slate-300 line-clamp-1 max-w-[200px]">${escapeHtml(item.title || "")}</td>
-                        <td class="py-2 px-2 text-right text-[10px] font-mono text-pink-400 font-bold whitespace-nowrap">${Number(item.price).toLocaleString()}円</td>
-                        <td class="py-2 pr-2 text-right">
-                            ${item.url ? `<a href="${item.url}" target="_blank" rel="noopener noreferrer" class="text-pink-400 hover:text-pink-300 text-[10px] p-1 hover:bg-pink-500/10 rounded-full inline-block"><i class="fas fa-external-link-alt"></i></a>` : ""}
-                        </td>
-                    </tr>`).join("")
-                : `<tr><td colspan="3" class="text-center py-3 text-[10px] text-slate-500">メルカリ出品データが取得できませんでした</td></tr>`;
-
-            profitResult.innerHTML = `
-                <!-- 判定バナー -->
-                <div class="rounded-xl p-4 mb-4 ${s.bg} border ${s.border} ${s.glow} flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                        <p class="text-[10px] text-slate-400 mb-0.5">「${escapeHtml(data.keyword)}」の利ザヤ判定</p>
-                        <p class="text-2xl font-bold ${s.text}">${p.verdict_label}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-[9px] text-slate-500">純利益（平均落札ベース）</p>
-                        <p class="text-3xl font-mono font-bold ${p.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}">${p.profit >= 0 ? '+' : ''}${p.profit.toLocaleString()}<span class="text-sm">円</span></p>
-                    </div>
-                </div>
-
-                <!-- 数値カード -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <div class="bg-slate-900/70 rounded-xl p-3 border border-white/5 text-center">
-                        <p class="text-[9px] text-pink-400/80 mb-1"><i class="fab fa-brands fa-mercari mr-1"></i>仕入れ値（メルカリ最安）</p>
-                        <p class="text-lg font-mono text-pink-400 font-bold">${p.buy_price.toLocaleString()}<span class="text-xs">円</span></p>
-                    </div>
-                    <div class="bg-slate-900/70 rounded-xl p-3 border border-yellow-500/20 text-center">
-                        <p class="text-[9px] text-yellow-400/80 mb-1"><i class="fas fa-gavel mr-1"></i>ヤフオク平均落札</p>
-                        <p class="text-lg font-mono text-yellow-400 font-bold">${p.sell_price.toLocaleString()}<span class="text-xs">円</span></p>
-                    </div>
-                    <div class="bg-slate-900/70 rounded-xl p-3 border border-white/5 text-center">
-                        <p class="text-[9px] text-slate-400 mb-1">ROI（投資対効果）</p>
-                        <p class="text-lg font-mono ${p.roi >= 20 ? 'text-emerald-400' : p.roi >= 10 ? 'text-amber-400' : 'text-red-400'} font-bold">${p.roi}%</p>
-                    </div>
-                    <div class="bg-slate-900/70 rounded-xl p-3 border border-white/5 text-center">
-                        <p class="text-[9px] text-slate-400 mb-1">利益率</p>
-                        <p class="text-lg font-mono ${p.profit_rate >= 15 ? 'text-emerald-400' : p.profit_rate >= 8 ? 'text-amber-400' : 'text-red-400'} font-bold">${p.profit_rate}%</p>
-                    </div>
-                </div>
-
-                <!-- コスト内訳 -->
-                <div class="bg-slate-900/50 border border-white/5 rounded-xl p-4 mb-4">
-                    <p class="text-[10px] font-bold text-slate-400 mb-2"><i class="fas fa-receipt mr-1"></i> コスト内訳</p>
-                    <div class="space-y-1 text-[11px]">
-                        <div class="flex justify-between"><span class="text-slate-400">仕入れ値</span><span class="text-slate-200 font-mono">${p.buy_price.toLocaleString()}円</span></div>
-                        <div class="flex justify-between"><span class="text-slate-400">メルカリ購入送料</span><span class="text-slate-200 font-mono">${p.shipping_buy.toLocaleString()}円</span></div>
-                        <div class="flex justify-between"><span class="text-slate-400">ヤフオク発送送料</span><span class="text-slate-200 font-mono">${p.shipping_sell.toLocaleString()}円</span></div>
-                        <div class="flex justify-between"><span class="text-slate-400">ヤフオク手数料（8.8%）</span><span class="text-slate-200 font-mono">${p.yahoo_fee.toLocaleString()}円</span></div>
-                        <div class="flex justify-between border-t border-white/10 pt-1 mt-1"><span class="text-slate-300 font-bold">合計コスト</span><span class="text-red-400 font-mono font-bold">${p.total_cost.toLocaleString()}円</span></div>
-                        <div class="flex justify-between border-t border-white/10 pt-1 mt-1">
-                            <span class="text-slate-300 font-bold">純利益（最高値ベース参考）</span>
-                            <span class="font-mono font-bold ${pm.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}">${pm.profit >= 0 ? '+' : ''}${pm.profit.toLocaleString()}円</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- メルカリ出品一覧 -->
-                ${mercari ? `
-                <div class="bg-slate-900/50 border border-pink-500/15 rounded-xl overflow-hidden">
-                    <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
-                        <p class="text-[10px] font-bold text-pink-400"><i class="fas fa-tag mr-1"></i> メルカリ 現在の出品（安い順・最大5件）</p>
-                        <span class="text-[9px] text-slate-500">${mercari.sample_count}件取得</span>
-                    </div>
-                    <table class="w-full">
-                        <tbody>${mercariItems}</tbody>
-                    </table>
-                </div>` : `<p class="text-[10px] text-slate-500 text-center py-2">※ 手動仕入れ値を使用（メルカリ自動取得なし）</p>`}
-            `;
-            profitResult.classList.remove("hidden");
-        }
-
-        profitBtn.onclick = async () => {
-            const keyword = profitInput.value.trim();
-            if (!keyword) return alert("キーワードを入力してください");
-
-            const originalHtml = profitBtn.innerHTML;
-            profitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 計算中...';
-            profitBtn.disabled = true;
-            profitResult.classList.add("hidden");
-
-            try {
-                const idToken = await currentUser.getIdToken();
-                const manualBuy = profitManualBuy.value ? parseInt(profitManualBuy.value) : null;
-                const res = await fetch("/api/profit-check", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-                    body: JSON.stringify({
-                        keyword,
-                        shipping_sell: parseInt(profitShipSell.value) || 600,
-                        shipping_buy:  parseInt(profitShipBuy.value)  || 600,
-                        manual_buy_price: manualBuy,
-                    })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || "取得失敗");
-                renderProfitResult(data);
-            } catch (err) {
-                profitResult.innerHTML = `<p class="text-xs text-red-400 text-center py-4"><i class="fas fa-exclamation-triangle mr-1"></i> ${escapeHtml(err.message)}</p>`;
-                profitResult.classList.remove("hidden");
-            } finally {
-                profitBtn.innerHTML = originalHtml;
-                profitBtn.disabled = false;
-            }
-        };
-
-        // Enterキー対応
-        profitInput.addEventListener("keypress", e => { if (e.key === "Enter") profitBtn.click(); });
-
-        // --- Scout ---
+        // --- Scout Appraise Logic ---
         scoutBtn.onclick = async () => {
             const keyword = scoutInput.value.trim();
             if (!keyword) return alert("検索キーワードを入力してください");
+
             const originalBtnHtml = scoutBtn.innerHTML;
             scoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 鑑定中...';
             scoutBtn.disabled = true;
             scoutBtn.classList.add("opacity-50", "cursor-not-allowed");
+
             scoutLoader.classList.remove("hidden");
             scoutResult.classList.add("hidden");
             scoutResult.innerHTML = "";
+
             try {
                 const idToken = await currentUser.getIdToken();
                 const res = await fetch('/api/scout', {
@@ -644,27 +537,41 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                     body: JSON.stringify({ keyword })
                 });
+                
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
+
                 let rankColor = "text-yellow-400 bg-yellow-500/20 border-yellow-500/30";
-                if (data.appraisal.profitability.includes("A")) rankColor = "text-emerald-400 bg-emerald-500/20 border-emerald-500/30";
-                else if (data.appraisal.profitability.includes("C")) rankColor = "text-red-400 bg-red-500/20 border-red-500/30";
+                if (data.appraisal.profitability.includes("A")) {
+                    rankColor = "text-emerald-400 bg-emerald-500/20 border-emerald-500/30";
+                } else if (data.appraisal.profitability.includes("C")) {
+                    rankColor = "text-red-400 bg-red-500/20 border-red-500/30";
+                }
+
                 let itemsHtml = "";
                 if (data.market_data.items && data.market_data.items.length > 0) {
                     itemsHtml = data.market_data.items.map(item => `
                         <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                            <td class="py-3 pl-2"><img src="${item.image}" class="w-10 h-10 object-cover rounded shadow-sm border border-white/10" alt="商品画像"></td>
-                            <td class="py-3 px-2"><div class="text-[10px] text-white font-medium line-clamp-2 leading-tight">${item.title}</div></td>
-                            <td class="py-3 px-2 text-right"><span class="text-[10px] font-mono text-white font-bold">${item.price}円</span></td>
+                            <td class="py-3 pl-2">
+                                <img src="${item.image}" class="w-10 h-10 object-cover rounded shadow-sm border border-white/10" alt="商品画像">
+                            </td>
+                            <td class="py-3 px-2">
+                                <div class="text-[10px] text-white font-medium line-clamp-2 leading-tight">${item.title}</div>
+                            </td>
+                            <td class="py-3 px-2 text-right">
+                                <span class="text-[10px] font-mono text-white font-bold">${item.price}円</span>
+                            </td>
                             <td class="py-3 pr-2 text-right">
                                 <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="text-yellow-500 hover:text-yellow-400 text-[10px] inline-flex items-center justify-center p-2 hover:bg-yellow-500/10 rounded-full transition-colors">
                                     <i class="fas fa-external-link-alt"></i>
                                 </a>
                             </td>
-                        </tr>`).join("");
+                        </tr>
+                    `).join("");
                 } else {
                      itemsHtml = `<tr><td colspan="4" class="text-center py-4 text-xs text-slate-500">詳細データが見つかりませんでした</td></tr>`;
                 }
+
                 scoutResult.innerHTML = `
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div class="bg-slate-950 p-4 rounded-lg border border-white/5 text-center">
@@ -678,9 +585,12 @@
                         </div>
                         <div class="bg-slate-950 p-4 rounded-lg border border-white/5 text-center flex flex-col justify-center items-center">
                             <p class="text-[10px] text-slate-400 mb-1">利益期待度</p>
-                            <span class="inline-block px-4 py-1 rounded-full text-sm font-bold border ${rankColor}">Rank: ${data.appraisal.profitability}</span>
+                            <span class="inline-block px-4 py-1 rounded-full text-sm font-bold border ${rankColor}">
+                                Rank: ${data.appraisal.profitability}
+                            </span>
                         </div>
                     </div>
+
                     <div class="mb-6 max-h-[400px] overflow-y-auto rounded-xl border border-white/5 bg-slate-950/50 custom-scrollbar">
                         <table class="w-full text-left border-collapse relative">
                             <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0 z-20 shadow-md">
@@ -691,48 +601,69 @@
                                     <th class="py-2 pr-2 text-right w-12">URL</th>
                                 </tr>
                             </thead>
-                            <tbody>${itemsHtml}</tbody>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
                         </table>
                     </div>
+
                     <div class="bg-yellow-900/10 p-4 rounded-lg border border-yellow-500/30">
                         <h3 class="text-[11px] font-bold text-yellow-500 mb-2"><i class="fas fa-comment-dots mr-1"></i> AI 鑑定アドバイス</h3>
                         <p class="text-xs text-slate-300 leading-relaxed">${data.appraisal.ai_advice}</p>
                     </div>
+
                     <div class="mt-4 bg-slate-900/80 p-4 rounded-lg border border-white/5">
                         <div class="flex justify-between items-center mb-3">
                             <h4 class="text-[10px] font-bold text-slate-400"><i class="fas fa-question-circle mr-1"></i> 鑑定結果についてAIに質問する</h4>
                             <span class="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">残り <span id="followup-left">2</span> 回</span>
                         </div>
-                        <div id="followup-history" class="space-y-3 mb-3 text-[11px] max-h-40 overflow-y-auto custom-scrollbar flex flex-col"></div>
+                        <div id="followup-history" class="space-y-3 mb-3 text-[11px] max-h-40 overflow-y-auto custom-scrollbar flex flex-col">
+                            </div>
                         <div class="flex gap-2">
                             <input type="text" id="followup-input" placeholder="例：箱なしの場合はいくらになりますか？" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50 text-white placeholder:text-slate-600">
                             <button id="followup-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
                                 <i class="fas fa-paper-plane"></i> 送信
                             </button>
                         </div>
-                    </div>`;
+                    </div>
+                `;
                 scoutResult.classList.remove("hidden");
+
                 let followUpCount = 0;
                 const maxFollowUps = 2; 
                 const currentThreadId = data.thread_id; 
+
                 const followupInput = document.getElementById("followup-input");
                 const followupBtn = document.getElementById("followup-btn");
                 const followupHistory = document.getElementById("followup-history");
                 const followupLeftSpan = document.getElementById("followup-left");
-                if (followupInput && followupBtn) {
+
+                if(followupInput && followupBtn) {
                     followupInput.addEventListener("keypress", function(event) {
-                        if (event.key === "Enter") { event.preventDefault(); followupBtn.click(); }
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            followupBtn.click();
+                        }
                     });
+
                     followupBtn.onclick = async () => {
                         const msg = followupInput.value.trim();
-                        if (!msg || followUpCount >= maxFollowUps) return;
+                        if(!msg) return;
+                        if(followUpCount >= maxFollowUps) return;
+
                         followupBtn.disabled = true;
                         followupInput.disabled = true;
-                        const origHtml = followupBtn.innerHTML;
+                        const originalBtnHtml = followupBtn.innerHTML;
                         followupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                        followupHistory.innerHTML += `<div class="self-end bg-blue-600/20 border border-blue-500/20 text-blue-100 px-3 py-2 rounded-lg rounded-br-none max-w-[85%]">${msg}</div>`;
+
+                        followupHistory.innerHTML += `
+                            <div class="self-end bg-blue-600/20 border border-blue-500/20 text-blue-100 px-3 py-2 rounded-lg rounded-br-none max-w-[85%]">
+                                ${msg}
+                            </div>
+                        `;
                         followupInput.value = "";
                         followupHistory.scrollTop = followupHistory.scrollHeight;
+
                         try {
                             const idToken = await currentUser.getIdToken();
                             const res = await fetch('/api/scout/followup', {
@@ -740,31 +671,46 @@
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                                 body: JSON.stringify({ thread_id: currentThreadId, message: msg })
                             });
+
                             const followData = await res.json();
-                            if (!res.ok) throw new Error(followData.error);
+                            if(!res.ok) throw new Error(followData.error);
+
                             followUpCount++;
                             followupLeftSpan.innerText = maxFollowUps - followUpCount;
-                            followupHistory.innerHTML += `<div class="self-start bg-slate-800 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg rounded-bl-none max-w-[90%] leading-relaxed"><i class="fas fa-robot text-yellow-500 mr-1 text-[10px]"></i> ${followData.answer.replace(/\n/g, '<br>')}</div>`;
-                            if (followUpCount >= maxFollowUps) {
+
+                            followupHistory.innerHTML += `
+                                <div class="self-start bg-slate-800 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg rounded-bl-none max-w-[90%] leading-relaxed">
+                                    <i class="fas fa-robot text-yellow-500 mr-1 text-[10px]"></i> ${followData.answer.replace(/\n/g, '<br>')}
+                                </div>
+                            `;
+
+                            if(followUpCount >= maxFollowUps) {
                                 followupInput.placeholder = "質問回数の上限（2回）に達しました。";
                                 followupInput.disabled = true;
                                 followupBtn.disabled = true;
+                                followupLeftSpan.parentElement.classList.replace("bg-blue-500/20", "bg-red-500/20");
+                                followupLeftSpan.parentElement.classList.replace("text-blue-400", "text-red-400");
+                                followupLeftSpan.parentElement.classList.replace("border-blue-500/30", "border-red-500/30");
                             } else {
                                 followupInput.disabled = false;
                                 followupBtn.disabled = false;
                                 followupInput.focus();
                             }
+
                         } catch (err) {
+                            console.error(err);
                             followupHistory.innerHTML += `<div class="text-red-400 text-center py-2 text-[10px]"><i class="fas fa-exclamation-triangle"></i> エラー: ${err.message}</div>`;
                             followupInput.disabled = false;
                             followupBtn.disabled = false;
                         } finally {
-                            followupBtn.innerHTML = origHtml;
+                            followupBtn.innerHTML = originalBtnHtml;
                             followupHistory.scrollTop = followupHistory.scrollHeight;
                         }
                     };
                 }
+
             } catch (err) {
+                console.error("Scout Error:", err);
                 scoutResult.innerHTML = `<p class="text-xs text-red-400 text-center py-4"><i class="fas fa-exclamation-triangle mr-1"></i> 鑑定エラー: ${err.message}</p>`;
                 scoutResult.classList.remove("hidden");
             } finally {
@@ -775,16 +721,19 @@
             }
         };
 
-        // --- Active Auctions ---
+        // --- Active Auctions Logic ---
         activeBtn.onclick = async () => {
             const keyword = activeInput.value.trim();
             if (!keyword) return alert("検索キーワードを入力してください");
+
             const originalBtnHtml = activeBtn.innerHTML;
             activeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 検索中...';
             activeBtn.disabled = true;
             activeBtn.classList.add("opacity-50", "cursor-not-allowed");
+
             activeResult.classList.add("hidden");
             activeResult.innerHTML = "";
+
             try {
                 const idToken = await currentUser.getIdToken();
                 const res = await fetch('/api/auctions/active', {
@@ -792,15 +741,22 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                     body: JSON.stringify({ keyword })
                 });
+                
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
+
                 window.currentActiveItems = data.items;
+
                 let itemsHtml = "";
                 if (data.items && data.items.length > 0) {
                     itemsHtml = data.items.map((item, index) => `
                         <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                            <td class="py-3 pl-2"><img src="${item.image}" class="w-10 h-10 object-cover rounded shadow-sm border border-white/10"></td>
-                            <td class="py-3 px-2"><div class="text-[10px] text-white font-medium line-clamp-2 leading-tight">${item.title}</div></td>
+                            <td class="py-3 pl-2">
+                                <img src="${item.image}" class="w-10 h-10 object-cover rounded shadow-sm border border-white/10">
+                            </td>
+                            <td class="py-3 px-2">
+                                <div class="text-[10px] text-white font-medium line-clamp-2 leading-tight">${item.title}</div>
+                            </td>
                             <td class="py-3 px-2 text-right">
                                 <div class="text-[10px] font-mono text-purple-400 font-bold">${item.price}</div>
                                 ${item.buy_now_price ? `<div class="text-[8px] text-yellow-500 mt-1 border border-yellow-500/30 rounded px-1 inline-block">即決: ${item.buy_now_price}</div>` : ''}
@@ -819,10 +775,14 @@
                                     </a>
                                 </div>
                             </td>
-                        </tr>`).join("");
+                        </tr>
+                    `).join("");
                 }
+
                 activeResult.innerHTML = `
-                    <div class="mb-2 text-[11px] text-slate-400"><i class="fas fa-info-circle"></i> 開催中の出品を ${data.items.length} 件見つけました。</div>
+                    <div class="mb-2 text-[11px] text-slate-400">
+                        <i class="fas fa-info-circle"></i> 開催中の出品を ${data.items.length} 件見つけました。
+                    </div>
                     <div class="max-h-[500px] overflow-y-auto rounded-xl border border-white/5 bg-slate-950/50 custom-scrollbar">
                         <table class="w-full text-left border-collapse relative">
                             <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0 z-20 shadow-md">
@@ -834,10 +794,14 @@
                                     <th class="py-2 pr-2 text-right w-20">操作</th>
                                 </tr>
                             </thead>
-                            <tbody>${itemsHtml}</tbody>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
                         </table>
-                    </div>`;
+                    </div>
+                `;
                 activeResult.classList.remove("hidden");
+
             } catch (err) {
                 activeResult.innerHTML = `<p class="text-xs text-red-400 text-center py-4"><i class="fas fa-exclamation-triangle mr-1"></i> エラー: ${err.message}</p>`;
                 activeResult.classList.remove("hidden");
@@ -850,12 +814,28 @@
 
         window.addAuctionToWatchlist = async (index) => {
             if (!currentUser) return alert("ログインが必要です");
+            
             const btn = document.getElementById(`add-auction-${index}`);
-            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            }
+
             const item = window.currentActiveItems[index];
             const bidsText = item.bids.includes("入札") ? item.bids : `入札${item.bids}件`;
+            // 一覧画面の終了日時は精度が低く、詳細ページと差異が出るため
+            // 監視リストの初期表示では終了日時は表示せず、ジョブ実行時に詳細ページから取得した値で上書きする
             const statusLabel = item.buy_now_price ? `即決: ${item.buy_now_price}` : `${bidsText}`;
-            const payload = { title: item.title, price: item.price, imageUrl: item.image, url: item.url, statusText: statusLabel, inStock: true };
+
+            const payload = {
+                title: item.title,
+                price: item.price,
+                imageUrl: item.image,
+                url: item.url,
+                statusText: statusLabel,
+                inStock: true
+            };
+
             try {
                 const idToken = await currentUser.getIdToken();
                 const res = await fetch('/api/watchlist', {
@@ -863,7 +843,9 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                     body: JSON.stringify(payload)
                 });
+
                 if (!res.ok) throw new Error("保存失敗");
+                
                 if (btn) {
                     btn.innerHTML = '<i class="fas fa-check"></i>';
                     btn.classList.replace("text-emerald-400", "text-emerald-600");
@@ -873,13 +855,14 @@
             } catch (err) {
                 console.error(err);
                 alert("エラー: " + err.message);
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-eye"></i>'; }
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-eye"></i>';
+                }
             }
         };
 
-        // ========================================
-        // キーワードリサーチャー
-        // ========================================
+        // --- キーワードリサーチャー ---
         const keywordSeedInput = document.getElementById("keyword-seed-input");
         const keywordResearchBtn = document.getElementById("keyword-research-btn");
         const keywordByGenreCheckbox = document.getElementById("keyword-by-genre-checkbox");
@@ -890,55 +873,33 @@
         const keywordAiList = document.getElementById("keyword-ai-list");
         const keywordProfitSection = document.getElementById("keyword-profit-section");
         const keywordProfitList = document.getElementById("keyword-profit-list");
+        const keywordFlatSection = document.getElementById("keyword-flat-section");
         const keywordByGenreSection = document.getElementById("keyword-by-genre-section");
         const keywordByGenreList = document.getElementById("keyword-by-genre-list");
 
-        // ★ 今日のおすすめシードキーワード
-        const suggestSeedsBtn = document.getElementById("suggest-seeds-btn");
-        const seedsLoader = document.getElementById("seeds-loader");
-        const seedsResult = document.getElementById("seeds-result");
-        const seedsList = document.getElementById("seeds-list");
+        function escapeAttr(s) {
+            return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+        }
+        function escapeHtml(s) {
+            const div = document.createElement("div");
+            div.textContent = s;
+            return div.innerHTML;
+        }
+        function makeKeywordChip(kw) {
+            const wrap = document.createElement("li");
+            wrap.className = "flex items-center gap-1 flex-wrap";
+            wrap.innerHTML = `
+                <span class="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px]">${escapeHtml(kw)}</span>
+                <button type="button" data-action="active" data-keyword="${escapeAttr(kw)}" class="px-2 py-0.5 rounded text-[9px] bg-purple-600 hover:bg-purple-500 text-white">開催中</button>
+                <button type="button" data-action="scout" data-keyword="${escapeAttr(kw)}" class="px-2 py-0.5 rounded text-[9px] bg-yellow-600 hover:bg-yellow-500 text-slate-900">鑑定</button>
+            `;
+            return wrap;
+        }
 
-        suggestSeedsBtn.onclick = async () => {
-            if (!currentUser) return alert("ログインが必要です");
-            suggestSeedsBtn.disabled = true;
-            seedsLoader.classList.remove("hidden");
-            seedsResult.classList.add("hidden");
-            seedsList.innerHTML = "";
-            try {
-                const idToken = await currentUser.getIdToken();
-                const res = await fetch("/api/keyword-research/seeds", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-                    body: JSON.stringify({})
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || "取得失敗");
-                (data.seeds || []).forEach(seed => {
-                    const btn = document.createElement("button");
-                    btn.type = "button";
-                    btn.className = "px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-emerald-800/40 border border-slate-700 hover:border-emerald-500/50 text-slate-200 text-[11px] transition-all";
-                    btn.textContent = seed;
-                    btn.onclick = () => {
-                        keywordSeedInput.value = seed;
-                        keywordSeedInput.scrollIntoView({ behavior: "smooth", block: "center" });
-                        keywordSeedInput.focus();
-                    };
-                    seedsList.appendChild(btn);
-                });
-                seedsResult.classList.remove("hidden");
-            } catch (err) {
-                alert("エラー: " + err.message);
-            } finally {
-                suggestSeedsBtn.disabled = false;
-                seedsLoader.classList.add("hidden");
-            }
-        };
-
-        // キーワード候補を取得
         keywordResearchBtn.onclick = async () => {
             const seed = keywordSeedInput.value.trim();
             if (!seed) return alert("シードキーワードを入力してください");
+
             keywordResearchBtn.disabled = true;
             keywordResearchLoader.classList.remove("hidden");
             keywordResearchResult.classList.add("hidden");
@@ -949,15 +910,10 @@
             keywordByGenreList.innerHTML = "";
             keywordByGenreSection.classList.add("hidden");
 
-            // flat-section（WebサジェストとAI候補）を一旦表示に戻す
-            const keywordFlatSection = document.getElementById("keyword-flat-section");
-            if (keywordFlatSection) keywordFlatSection.classList.remove("hidden");
-
             try {
                 const idToken = await currentUser.getIdToken();
-                const byGenre = !!(keywordByGenreCheckbox && keywordByGenreCheckbox.checked);
-                const focusProfit = !!(keywordFocusProfitCheckbox && keywordFocusProfitCheckbox.checked);
-
+                const byGenre = keywordByGenreCheckbox && keywordByGenreCheckbox.checked;
+                const focusProfit = keywordFocusProfitCheckbox && keywordFocusProfitCheckbox.checked;
                 const res = await fetch("/api/keyword-research", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
@@ -966,46 +922,34 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "取得に失敗しました");
 
-                // シードキーワードも候補として扱いたい場合があるため、
-                // API結果に含まれていない場合は、AI候補または稼ぎやすい候補の先頭に追加する
-                let webList = Array.isArray(data.web) ? [...data.web] : [];
-                let aiList = Array.isArray(data.ai) ? [...data.ai] : [];
-                let profitList = Array.isArray(data.profit) ? [...data.profit] : [];
-                if (seed) {
-                    const exists =
-                        webList.includes(seed) ||
-                        aiList.includes(seed) ||
-                        profitList.includes(seed);
-                    if (!exists) {
-                        if (focusProfit) {
-                            profitList.unshift(seed);
-                        } else {
-                            aiList.unshift(seed);
-                        }
-                    }
-                }
-
-                // ★ 稼ぎやすい候補（profit）
-                if (focusProfit && profitList.length > 0) {
+                if ((data.profit || []).length > 0) {
                     keywordProfitSection.classList.remove("hidden");
-                    profitList.forEach(kw => keywordProfitList.appendChild(makeKeywordChip(kw)));
+                    data.profit.forEach(kw => {
+                        const li = makeKeywordChip(kw);
+                        keywordProfitList.appendChild(li);
+                    });
                 }
 
-                // Webサジェスト・AI候補
-                webList.forEach(kw => keywordWebList.appendChild(makeKeywordChip(kw)));
-                aiList.forEach(kw => keywordAiList.appendChild(makeKeywordChip(kw)));
+                (data.web || []).forEach(kw => {
+                    const li = makeKeywordChip(kw);
+                    keywordWebList.appendChild(li);
+                });
+                (data.ai || []).forEach(kw => {
+                    const li = makeKeywordChip(kw);
+                    keywordAiList.appendChild(li);
+                });
 
-                // ジャンル別
                 if (byGenre && data.by_genre && Object.keys(data.by_genre).length > 0) {
                     keywordByGenreSection.classList.remove("hidden");
-                    // by_genre時はflat-sectionを隠してジャンル別を前面に出す
-                    if (keywordFlatSection) keywordFlatSection.classList.add("hidden");
                     Object.entries(data.by_genre).forEach(([genre, kws]) => {
                         const card = document.createElement("div");
                         card.className = "bg-slate-900/50 border border-cyan-500/20 rounded-xl p-4";
                         const ul = document.createElement("ul");
                         ul.className = "flex flex-wrap gap-2";
-                        (kws || []).forEach(kw => ul.appendChild(makeKeywordChip(kw)));
+                        (kws || []).forEach(kw => {
+                            const li = makeKeywordChip(kw);
+                            ul.appendChild(li);
+                        });
                         card.innerHTML = `<h4 class="text-[11px] font-bold text-cyan-400 mb-2 border-b border-cyan-500/20 pb-1">${escapeHtml(genre)}</h4>`;
                         card.appendChild(ul);
                         keywordByGenreList.appendChild(card);
@@ -1021,34 +965,12 @@
             }
         };
 
-        // ★ キーワードチップのボタンイベント（コピー・種にする・開催中・鑑定）
         keywordResearchResult.addEventListener("click", (e) => {
             const btn = e.target.closest("button[data-action][data-keyword]");
             if (!btn) return;
             const action = btn.getAttribute("data-action");
             const keyword = btn.getAttribute("data-keyword") || "";
-            if (action === "copy") {
-                navigator.clipboard.writeText(keyword).then(() => {
-                    const icon = btn.querySelector("i");
-                    if (icon) icon.className = "fas fa-check";
-                    btn.classList.add("text-emerald-400");
-                    setTimeout(() => {
-                        if (icon) icon.className = "fas fa-copy";
-                        btn.classList.remove("text-emerald-400");
-                    }, 1500);
-                }).catch(() => {
-                    // フォールバック
-                    const ta = document.createElement("textarea");
-                    ta.value = keyword;
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(ta);
-                });
-            } else if (action === "seed") {
-                keywordSeedInput.value = keyword;
-                keywordResearchBtn.click();
-            } else if (action === "active") {
+            if (action === "active") {
                 switchTab("active");
                 activeInput.value = keyword;
                 activeInput.focus();
@@ -1059,35 +981,41 @@
             }
         });
 
-        // --- Auth ---
+        // --- Auth Logic ---
         loginBtn.onclick = async () => {
             const provider = new GoogleAuthProvider();
             try { await signInWithPopup(auth, provider); } catch(e) { console.error("Login Error:", e); }
         };
+
         logoutBtn.onclick = () => signOut(auth);
+
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
+                console.log("✅ Auth State: Logged In", user.uid);
                 loginOverlay.classList.add("hidden");
                 logoutBtn.classList.remove("hidden");
                 initWatchlist(user.uid);
                 loadSettings(user.uid);
             } else {
                 currentUser = null;
+                console.log("❌ Auth State: Logged Out");
                 loginOverlay.classList.remove("hidden");
                 logoutBtn.classList.add("hidden");
             }
         });
 
-        // --- Monitor (Old PB) ---
+        // --- Monitor (Old PB) Logic ---
         aiSuggestBtn.onclick = async () => {
             const originalBtnHtml = aiSuggestBtn.innerHTML;
             aiSuggestBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分析中...';
             aiSuggestBtn.disabled = true;
             aiSuggestBtn.classList.add("opacity-50", "cursor-not-allowed");
+
             aiRecsContainer.classList.remove("hidden");
             aiRecsList.innerHTML = `<p class="text-[10px] text-slate-400 text-center py-2">AIがトレンドを分析しています... (約10〜20秒)</p>`;
             aiRecsLoader.classList.remove("hidden");
+
             try {
                 const idToken = await currentUser.getIdToken();
                 const res = await fetch('/api/recommendations', {
@@ -1097,6 +1025,7 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
                 currentAiRecs = data.recommendations;
+                
                 let html = currentAiRecs.map(item => `
                     <div class="bg-slate-900/50 p-3 rounded-lg border border-white/5 flex flex-col sm:flex-row justify-between gap-2 items-start sm:items-center">
                         <div class="flex-1">
@@ -1105,7 +1034,9 @@
                             </h4>
                             <p class="text-[10px] text-emerald-400/80">${item.reason}</p>
                         </div>
-                    </div>`).join("");
+                    </div>
+                `).join("");
+
                 if (currentAiRecs.length > 0) {
                     html += `<div class="mt-3 flex justify-end">
                         <button id="ai-bulk-add-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-2">
@@ -1114,6 +1045,7 @@
                     </div>`;
                 }
                 aiRecsList.innerHTML = html;
+
                 const bulkAddBtn = document.getElementById("ai-bulk-add-btn");
                 if (bulkAddBtn) {
                     bulkAddBtn.onclick = async () => {
@@ -1121,7 +1053,6 @@
                         bulkAddBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登録中...';
                         const urls = currentAiRecs.map(item => item.url);
                         try {
-                            const idToken = await currentUser.getIdToken();
                             const resBulk = await fetch('/api/watchlist/bulk', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
@@ -1192,6 +1123,7 @@
         }
 
         previewCancel.onclick = () => previewContainer.classList.add("hidden");
+
         confirmAddBtn.onclick = async () => {
             if (!currentInspectedData) return;
             confirmAddBtn.disabled = true;
@@ -1220,7 +1152,9 @@
         csvInput.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            if (!confirm(`${file.name} をインポートしますか？\n(最大5件まで、URL列が必要です)`)) { csvInput.value = ""; return; }
+            if (!confirm(`${file.name} をインポートしますか？\n(最大5件まで、URL列が必要です)`)) {
+                csvInput.value = ""; return;
+            }
             const originalBtnText = csvUploadBtn.innerHTML;
             csvUploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 送信中...';
             csvUploadBtn.disabled = true;
@@ -1243,12 +1177,17 @@
             }
         };
 
-        // --- Watchlist Realtime Sync ---
+       // --- Watchlist Realtime Sync (URLで自動振り分け) ---
         function initWatchlist(uid) {
+            console.log("🚀 監視開始: artifacts/" + APP_ID + "/users/" + uid + "/watchlist");
             const colRef = collection(db, 'artifacts', APP_ID, 'users', uid, 'watchlist');
+            
             onSnapshot(colRef, (snap) => {
-                let countYahoo = 0, countMonitor = 0;
-                let htmlYahoo = "", htmlMonitor = "";
+                let countYahoo = 0;
+                let countMonitor = 0;
+                let htmlYahoo = "";
+                let htmlMonitor = "";
+
                 if (snap.empty) {
                     watchlistMonitor.innerHTML = `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
                     watchlistYahoo.innerHTML = `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
@@ -1256,35 +1195,44 @@
                     itemCountYahoo.innerText = "0";
                     return;
                 }
+
                 snap.docs.forEach(doc => {
                     const d = doc.data();
                     const img = d.imageUrl || d.image_url || "";
                     const name = d.title || d.product_name || "不明な商品";
                     const status = d.statusText || d.status || "";
                     const url = d.url || "#";
+                    
                     const isYahoo = url.includes("yahoo.co.jp");
                     const iconHtml = isYahoo ? '<i class="fas fa-gavel text-emerald-400 mr-1" title="ヤフオク"></i>' : '<i class="fas fa-box-open text-blue-400 mr-1" title="プレバン"></i>';
                     const hoverColor = isYahoo ? "hover:border-emerald-500/30" : "hover:border-blue-500/30";
                     const textColor = isYahoo ? "group-hover:text-emerald-400" : "group-hover:text-blue-400";
                     const inputFocusColor = isYahoo ? "focus-within:border-emerald-500/50" : "focus-within:border-blue-500/50";
+
                     const itemHtml = `
                         <div class="glass p-3 rounded-xl flex flex-col gap-2 relative group ${hoverColor} transition-colors">
                             <div class="flex gap-3">
                                 <img src="${img}" class="w-12 h-12 object-cover rounded-lg bg-black relative z-10 mt-1">
+                                
                                 <div class="flex-1 min-w-0 relative z-10">
-                                    <p class="text-[10px] font-bold text-white truncate ${textColor} transition-colors">${iconHtml}${name}</p>
+                                    <p class="text-[10px] font-bold text-white truncate ${textColor} transition-colors">
+                                        ${iconHtml}${name}
+                                    </p>
                                     <p class="text-[9px] ${isYahoo ? 'text-emerald-400/80' : 'text-blue-400'} mt-0.5">${d.price || ''} / ${status}</p>
                                 </div>
+
                                 <button onclick="deleteItem('${doc.id}')" class="relative z-20 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all px-2 h-8">
                                     <i class="fas fa-trash-alt text-xs"></i>
                                 </button>
                             </div>
+                            
                             <div class="flex gap-2 items-center relative z-20 pt-2 border-t border-white/5 mt-1">
                                 ${isYahoo ? `
                                 <div class="flex items-center bg-slate-900 border border-slate-700 rounded ${inputFocusColor} transition-colors w-24">
                                     <span class="text-[8px] text-slate-500 pl-2">上限¥</span>
                                     <input type="number" value="${d.my_target_price || ''}" placeholder="入札額" onchange="updateWatchlistData('${doc.id}', 'my_target_price', this.value)" class="w-full bg-transparent border-none outline-none px-1 py-1 text-[10px] text-white placeholder:text-slate-600">
-                                </div>` : ''}
+                                </div>
+                                ` : ''}
                                 <div class="flex items-center flex-1 bg-slate-900 border border-slate-700 rounded ${inputFocusColor} transition-colors">
                                     <i class="fas fa-pen text-[8px] text-slate-500 pl-2"></i>
                                     <input type="text" value="${d.memo || ''}" placeholder="検品メモや状態など..." onchange="updateWatchlistData('${doc.id}', 'memo', this.value)" class="w-full bg-transparent border-none outline-none px-2 py-1 text-[10px] text-white placeholder:text-slate-600">
@@ -1292,17 +1240,29 @@
                                 ${isYahoo ? `
                                 <a href="${url}" target="_blank" rel="noopener noreferrer" class="ml-1 px-2 py-1 rounded-lg border border-emerald-500/40 text-[9px] text-emerald-400 hover:bg-emerald-500/10 whitespace-nowrap flex items-center gap-1">
                                     <i class="fas fa-external-link-alt"></i> 開く
-                                </a>` : ''}
+                                </a>
+                                ` : ''}
                             </div>
                         </div>`;
-                    if (isYahoo) { htmlYahoo += itemHtml; countYahoo++; }
-                    else { htmlMonitor += itemHtml; countMonitor++; }
+
+                    if (isYahoo) {
+                        htmlYahoo += itemHtml;
+                        countYahoo++;
+                    } else {
+                        htmlMonitor += itemHtml;
+                        countMonitor++;
+                    }
                 });
+
                 watchlistYahoo.innerHTML = countYahoo > 0 ? htmlYahoo : `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
                 watchlistMonitor.innerHTML = countMonitor > 0 ? htmlMonitor : `<div class="col-span-full p-10 text-center opacity-30 text-xs">アイテムがありません</div>`;
+                
                 itemCountYahoo.innerText = countYahoo;
                 itemCountMonitor.innerText = countMonitor;
-            }, (error) => { console.error("❌ Firestoreリスナーエラー:", error); });
+
+            }, (error) => {
+                console.error("❌ Firestoreリスナーエラー:", error);
+            });
         }
 
         window.updateWatchlistData = async (id, field, value) => {
@@ -1310,7 +1270,10 @@
             try {
                 const ref = doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'watchlist', id);
                 const finalValue = field === 'my_target_price' ? (value ? parseInt(value, 10) : null) : value;
-                await updateDoc(ref, { [field]: finalValue, updatedAt: serverTimestamp() });
+                await updateDoc(ref, { 
+                    [field]: finalValue, 
+                    updatedAt: serverTimestamp() 
+                });
             } catch (err) {
                 console.error("更新エラー:", err);
                 alert("データの保存に失敗しました");
@@ -1319,16 +1282,151 @@
         
         window.deleteItem = async (id) => {
             if (confirm("削除しますか？")) {
-                try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'watchlist', id)); }
-                catch (e) { console.error("Delete Error:", e); }
+                try {
+                    await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'watchlist', id));
+                } catch (e) {
+                    console.error("Delete Error:", e);
+                }
             }
         };
 
-        // --- Settings ---
+        // --- Settings Logic ---
         async function loadSettings(uid) {
             const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'line'));
-            if (snap.exists()) { document.getElementById("line-id-input").value = snap.data().lineUserId || ""; }
+            if (snap.exists()) {
+                document.getElementById("line-id-input").value = snap.data().lineUserId || "";
             }
+        }
+
+
+        // ========================================================
+        // 利ザヤチェッカー
+        // ========================================================
+        const profitBtn = document.getElementById("profit-btn");
+        const profitResult = document.getElementById("profit-result");
+        const profitMercariBanner = document.getElementById("profit-mercari-banner");
+
+        function fmt(n) {
+            if (n == null || isNaN(n)) return "---";
+            return Number(n).toLocaleString();
+        }
+
+        function buildProfitCard(label, data) {
+            const isProfit = data.profit > 0;
+            const verdictColor = data.verdict === "BUY"
+                ? "text-green-400 border-green-500/30 bg-green-500/10"
+                : data.verdict === "CONSIDER"
+                    ? "text-yellow-400 border-yellow-500/30 bg-yellow-500/10"
+                    : "text-red-400 border-red-500/30 bg-red-500/10";
+            return `
+                <div class="space-y-3">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${label} で売れた場合</p>
+                  <p class="text-2xl font-mono font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}">${isProfit ? '+' : ''}¥${fmt(data.profit)}</p>
+                  <div class="grid grid-cols-2 gap-2 text-[10px]">
+                    <div class="bg-slate-950 rounded-lg p-2">
+                      <p class="text-slate-500 mb-0.5">販売価格</p>
+                      <p class="font-mono text-white">¥${fmt(data.sell_price)}</p>
+                    </div>
+                    <div class="bg-slate-950 rounded-lg p-2">
+                      <p class="text-slate-500 mb-0.5">仕入れ価格</p>
+                      <p class="font-mono text-white">¥${fmt(data.buy_price)}</p>
+                    </div>
+                    <div class="bg-slate-950 rounded-lg p-2">
+                      <p class="text-slate-500 mb-0.5">ROI</p>
+                      <p class="font-mono ${data.roi > 15 ? 'text-green-400' : 'text-slate-300'}">${data.roi ?? '--'}%</p>
+                    </div>
+                    <div class="bg-slate-950 rounded-lg p-2">
+                      <p class="text-slate-500 mb-0.5">利益率</p>
+                      <p class="font-mono text-white">${data.profit_rate ?? '--'}%</p>
+                    </div>
+                  </div>
+                  <div class="inline-block px-3 py-1 rounded-full text-xs font-bold border ${verdictColor}">
+                    ${data.verdict_label}
+                  </div>
+                </div>`;
+        }
+
+        profitBtn.onclick = async () => {
+            const keyword = document.getElementById("profit-keyword").value.trim();
+            if (!keyword) return alert("キーワードを入力してください");
+
+            const manualBuy = document.getElementById("profit-manual-buy").value.trim();
+            const shipBuy   = document.getElementById("profit-ship-buy").value  || 600;
+            const shipSell  = document.getElementById("profit-ship-sell").value || 600;
+
+            const origHtml = profitBtn.innerHTML;
+            profitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> 計算中...';
+            profitBtn.disabled = true;
+            profitResult.classList.add("hidden");
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch('/api/profit-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                    body: JSON.stringify({
+                        keyword,
+                        shipping_buy:  Number(shipBuy),
+                        shipping_sell: Number(shipSell),
+                        manual_buy_price: manualBuy ? Number(manualBuy) : null
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok || data.error) throw new Error(data.error || "サーバーエラー");
+                if (!data.yahoo_data) throw new Error("ヤフオクデータが取得できませんでした");
+
+                // ---- メルカリバナー ----
+                if (data.mercari_data && data.mercari_data.min_price != null) {
+                    document.getElementById("pr-mercari-min").textContent = "¥" + fmt(data.mercari_data.min_price);
+                    profitMercariBanner.className = "rounded-xl px-4 py-3 border text-xs text-cyan-300 bg-cyan-900/20 border-cyan-500/30";
+                    profitMercariBanner.innerHTML = '<i class="fas fa-check-circle mr-1"></i> メルカリ最安値を仕入れ価格として使用しました（' + fmt(data.mercari_data.min_price) + ' 円）';
+                    profitMercariBanner.classList.remove("hidden");
+                } else {
+                    document.getElementById("pr-mercari-min").textContent = "取得不可";
+                    if (manualBuy) {
+                        profitMercariBanner.className = "rounded-xl px-4 py-3 border text-xs text-yellow-300 bg-yellow-900/20 border-yellow-500/30";
+                        profitMercariBanner.innerHTML = '<i class="fas fa-info-circle mr-1"></i> メルカリ価格取得不可。入力した手動価格 ¥' + fmt(Number(manualBuy)) + ' を使用しました。';
+                    } else {
+                        profitMercariBanner.className = "rounded-xl px-4 py-3 border text-xs text-red-300 bg-red-900/20 border-red-500/30";
+                        profitMercariBanner.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> メルカリ価格を取得できませんでした。「仕入れ価格（手動）」に金額を入力すると利益を計算できます。';
+                    }
+                    profitMercariBanner.classList.remove("hidden");
+                }
+
+                // ---- Yahoo相場 ----
+                document.getElementById("pr-yahoo-avg").textContent = "¥" + fmt(data.yahoo_data.avg_price.replace(/,/g, ''));
+                document.getElementById("pr-yahoo-max").textContent = "¥" + fmt(data.yahoo_data.max_price.replace(/,/g, ''));
+
+                // ---- 利益カード ----
+                document.getElementById("pr-card-avg").innerHTML = buildProfitCard("ヤフオク平均価格", data.profit_avg);
+                document.getElementById("pr-card-max").innerHTML = buildProfitCard("ヤフオク最高価格", data.profit_max);
+
+                // ---- 落札履歴 ----
+                const items = (data.yahoo_data.items || []).slice(0, 30);
+                document.getElementById("pr-items-body").innerHTML = items.length
+                    ? items.map(it => `
+                        <tr class="border-b border-white/5 hover:bg-white/[0.02]">
+                          <td class="py-2 px-3 text-[10px] text-white leading-tight">${it.title}</td>
+                          <td class="py-2 px-3 text-right font-mono text-[10px] text-white font-bold">${it.price}</td>
+                          <td class="py-2 px-3 text-right">
+                            <a href="${it.url}" target="_blank" class="text-yellow-500 hover:text-yellow-400 text-[10px] p-1.5 hover:bg-yellow-500/10 rounded-full transition-colors inline-block">
+                              <i class="fas fa-external-link-alt"></i>
+                            </a>
+                          </td>
+                        </tr>`).join("")
+                    : `<tr><td colspan="3" class="py-4 text-center text-xs text-slate-500">データなし</td></tr>`;
+
+                profitResult.classList.remove("hidden");
+
+            } catch (err) {
+                alert("エラー: " + err.message);
+            } finally {
+                profitBtn.innerHTML = origHtml;
+                profitBtn.disabled = false;
+            }
+        };
+
         saveLineBtn.onclick = async () => {
             const val = document.getElementById("line-id-input").value.trim();
             if (!val.startsWith("U")) return alert("LINE User ID (U...) を入力してください");
@@ -1336,6 +1434,7 @@
             await setDoc(ref, { lineUserId: val, updatedAt: serverTimestamp() });
             alert("LINE IDを保存しました");
         };
+
         testLineBtn.onclick = async () => {
             testLineBtn.disabled = true;
             try {
@@ -1344,10 +1443,16 @@
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${idToken}` }
                 });
-                if (!res.ok) { const data = await res.json(); throw new Error(data.error); }
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error);
+                }
                 alert("テスト通知を送信しました。LINEを確認してください。");
-            } catch (err) { alert("エラー: " + err.message); }
-            finally { testLineBtn.disabled = false; }
+            } catch (err) {
+                alert("エラー: " + err.message);
+            } finally {
+                testLineBtn.disabled = false;
+            }
         };
     </script>
   </body>
