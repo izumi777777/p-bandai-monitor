@@ -5,13 +5,13 @@ import re
 import urllib.parse
 import unicodedata
 from typing import Optional
+from functools import wraps
 
 # --- スクレイピング・データ処理用 ---
 from bs4 import BeautifulSoup
 import csv
 import io
 from datetime import datetime
-from functools import wraps
 from flask import Flask, request, jsonify, render_template, abort, redirect, url_for
 
 # --- LINE Messages API ---
@@ -30,12 +30,14 @@ from azure.ai.agents.models import ListSortOrder
 # --- その他 ---
 from dotenv import load_dotenv
 
+import requests
+import time
+
 # curl_cffi をフォールバック付きでインポート（AppRunner環境対応）
 try:
     from curl_cffi import requests as cffi_requests
     USE_CFFI = True
 except ImportError:
-    import requests as _requests
     USE_CFFI = False
 
 import firebase_admin
@@ -52,7 +54,7 @@ logger = logging.getLogger(__name__)
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET")
 
-# LINE SDK: 環境変数未設定時のクラッシュを防ぐ
+# LINE SDK 初期化
 line_bot_api = None
 handler = None
 if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
@@ -62,8 +64,6 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
         logger.info("✅ LINE Bot SDK 初期化成功")
     except Exception as e:
         logger.warning(f"⚠️ LINE Bot SDK 初期化スキップ: {e}")
-else:
-    logger.warning("⚠️ LINE環境変数が未設定のためLINE Bot SDK をスキップ")
 
 app = Flask(__name__)
 
@@ -73,7 +73,7 @@ APP_ID = os.getenv("APP_ID", "pb-stock-monitor-pro")
 IS_PRODUCTION = os.getenv("FLASK_ENV") == "production" or os.getenv("ENV") == "production"
 
 # ==========================
-# Firebase 初期化
+# Firebase 初期化 (堅牢化版)
 # ==========================
 db = None
 try:
@@ -83,190 +83,269 @@ try:
             cred = credentials.Certificate(cred_path)
             firebase_admin.initialize_app(cred)
             logger.info(f"✅ Firebase Admin SDK 連携成功 (File: {cred_path})")
+        else:
+            logger.warning(f"⚠️ Firebaseキーファイルが見つかりません: {cred_path}")
     db = firestore.client()
 except Exception as e:
-    logger.error(f"❌ Firebase初期化エラー: {e}")
+    logger.error(f"❌ Firebase初期化エラー（サーバー起動は継続）: {e}")
 
 # ==========================
-# Azure 初期化
+# Azure 初期化 (AppRunner互換)
 # ==========================
 project_client = None
 agent = None
 
-# 環境変数（新API用）
-AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
-AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
-AZURE_PROJECT_NAME = os.getenv("AZURE_PROJECT_NAME")
-
 try:
-    if AGENT_ID:
-        credential = DefaultAzureCredential()
-
-        # 新API (azure-ai-projects >= 1.0.0b9 以降):
-        #   AIProjectClient(credential, subscription_id, resource_group_name, project_name)
-        # 旧API:
-        #   AIProjectClient(credential=..., endpoint=...)
-        # 両方試みて成功した方を使う
-        if AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP and AZURE_PROJECT_NAME:
-            try:
-                project_client = AIProjectClient(
-                    credential=credential,
-                    subscription_id=AZURE_SUBSCRIPTION_ID,
-                    resource_group_name=AZURE_RESOURCE_GROUP,
-                    project_name=AZURE_PROJECT_NAME
-                )
-                logger.info("✅ Azure AI Project 初期化成功 (新API: subscription_id方式)")
-            except Exception as e1:
-                logger.warning(f"⚠️ 新API初期化失敗、旧APIにフォールバック: {e1}")
-                if AZURE_PROJECT_ENDPOINT:
-                    project_client = AIProjectClient(
-                        credential=credential,
-                        endpoint=AZURE_PROJECT_ENDPOINT
-                    )
-                    logger.info("✅ Azure AI Project 初期化成功 (旧API: endpoint方式)")
-        elif AZURE_PROJECT_ENDPOINT:
-            project_client = AIProjectClient(
-                credential=credential,
-                endpoint=AZURE_PROJECT_ENDPOINT
-            )
-            logger.info("✅ Azure AI Project 初期化成功 (旧API: endpoint方式)")
-
-        # Agentの取得（メソッド名の揺らぎを吸収）
-        if project_client:
-            for _method in ["get_agent", "get"]:
+    if AZURE_PROJECT_ENDPOINT and AGENT_ID:
+        project_client = AIProjectClient(
+            credential=DefaultAzureCredential(),
+            endpoint=AZURE_PROJECT_ENDPOINT
+        )
+        # メソッド名変更に対応した取得ロジック
+        for method_name in ["get_agent", "get"]:
+            if hasattr(project_client.agents, method_name):
                 try:
-                    if hasattr(project_client.agents, _method):
-                        agent = getattr(project_client.agents, _method)(AGENT_ID)
-                        if agent:
-                            logger.info(f"✅ Azure Agent取得成功 (method: {_method})")
-                            break
-                except Exception as _e:
-                    logger.warning(f"⚠️ agents.{_method}() 失敗: {_e}")
-            if not agent:
-                logger.warning("⚠️ Azure Agent取得できず。AIなしで起動します。")
+                    agent = getattr(project_client.agents, method_name)(AGENT_ID)
+                    if agent:
+                        logger.info(f"✅ Azure AI Agent 連携成功 (method: {method_name})")
+                        break
+                except: continue
     else:
-        logger.warning("⚠️ Azure環境変数が未設定のためAIをスキップ")
+        logger.warning("⚠️ Azure環境変数が不足しているためAI機能をスキップします")
 except Exception as e:
-    # ここで例外をキャッチしてgunicornのクラッシュを防ぐ
-    logger.error(f"❌ Azure初期化エラー（サーバーは継続起動）: {e}")
-    project_client = None
-    agent = None
+    logger.error(f"❌ Azure初期化エラー（サーバー起動は継続）: {e}")
 
 # ==========================
 # 共通ユーティリティ
 # ==========================
 def http_get(url, timeout=15):
-    """curl_cffi / requests フォールバック付きGET"""
+    """curl_cffi / requests 自動切替"""
     if USE_CFFI:
         return cffi_requests.get(url, impersonate="chrome120", timeout=timeout)
     else:
-        return _requests.get(url, timeout=timeout, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        })
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        return _requests.get(url, timeout=timeout, headers=headers)
 
-def login_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if os.getenv("SKIP_AUTH") == "true" and not IS_PRODUCTION:
-            request.user = {"uid": "debug_user"}
-            return f(*args, **kwargs)
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return jsonify({"error": "Unauthorized"}), 401
-        token = auth_header.split("Bearer ")[1]
-        try:
-            decoded = auth.verify_id_token(token)
-            request.user = decoded
-        except Exception as e:
-            return jsonify({"error": f"Invalid token: {e}"}), 401
-        return f(*args, **kwargs)
-    return wrapper
-
-def optimize_search_keyword(raw_keyword):
-    if not raw_keyword: return ""
-    keyword = unicodedata.normalize('NFKC', raw_keyword)
-    keyword = re.sub(r'([a-zA-Z0-9])([^\x01-\x7E])', r'\1 \2', keyword)
-    keyword = re.sub(r'([^\x01-\x7E])([a-zA-Z0-9])', r'\1 \2', keyword)
-    return re.sub(r'\s+', ' ', keyword).strip()
-
-# ==========================
-# スクレイピング ロジック
-# ==========================
-def scrape_yahuoku_closed(raw_keyword):
+def scrape_yahuoku_closed(raw_keyword, max_pages: int = 3):
+    """
+    ヤフオク落札相場取得 (最新のReactランダムクラス名に対応した最強堅牢版)
+    """
     try:
         keyword = optimize_search_keyword(raw_keyword)
         encoded = urllib.parse.quote(keyword)
-        url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?p={encoded}&n=50"
-        res = http_get(url, timeout=15)
-        if res.status_code != 200: return None
-        soup = BeautifulSoup(res.text, "html.parser")
-        product_items = soup.find_all("li", class_="Product")
-        fetched = []
-        for item in product_items:
+        base_url = f"https://auctions.yahoo.co.jp/closedsearch/closedsearch?p={encoded}&n=100"
+
+        visited = set()
+        urls = [base_url]
+        all_items = []
+
+        page_count = 0
+        while urls and page_count < max_pages:
+            url = urls.pop(0)
+            if url in visited: continue
+            visited.add(url)
+            page_count += 1
+
+            if page_count > 1:
+                time.sleep(1)
+
             try:
-                title_tag = item.find("a", class_="Product__titleLink")
-                price_tag = item.find("span", class_="Product__priceValue")
-                img_tag = item.find("img")
-                if title_tag and price_tag:
-                    p_str = price_tag.text.replace(',', '').replace('円', '').strip()
-                    if p_str.isdigit():
-                        fetched.append({
-                            "title": title_tag.text.strip(),
-                            "url": urllib.parse.urljoin("https://auctions.yahoo.co.jp", title_tag.get("href", "#")),
-                            "price": f"{int(p_str):,}円",
-                            "raw_price": int(p_str),
-                            "image": img_tag.get("src", "") if img_tag else ""
-                        })
-            except: continue
-        if not fetched: return None
-        prices = [i["raw_price"] for i in fetched]
+                res = requests.get(url, timeout=10)
+            except Exception:
+                res = http_get(url, timeout=15)
+
+            if res.status_code != 200:
+                continue
+
+            soup = BeautifulSoup(res.text, "html.parser")
+            
+            # クラス名に依存せず、商品リンクから親ブロックをたどって情報を抽出する
+            visited_item_urls = set()
+            
+            for a_tag in soup.find_all("a", href=re.compile(r"auctions\.yahoo\.co\.jp/jp/auction/[a-zA-Z0-9]+")):
+                item_url = a_tag.get("href")
+                if item_url in visited_item_urls:
+                    continue
+                
+                # 親要素をたどって商品ブロック全体（テキストに「落札」「円」が含まれる塊）を見つける
+                block = a_tag.parent
+                is_valid_block = False
+                for _ in range(10): # 最大10階層上まで
+                    if not block: break
+                    text = block.get_text(strip=True)
+                    if "落札" in text and "円" in text and len(text) < 1000:
+                        is_valid_block = True
+                        break
+                    block = block.parent
+                
+                if not is_valid_block or not block:
+                    continue
+                
+                # テキストがくっつくのを防ぐために separator を入れる
+                text = block.get_text(separator=" ", strip=True) 
+                
+                # 落札価格の抽出 (例: "落札 2,900 円" または "落札2,900円")
+                price_match = re.search(r"落札\s*([\d,]+)\s*円", text)
+                if not price_match:
+                    price_match = re.search(r"落札.*?([\d,]+)\s*円", text)
+                    
+                if not price_match:
+                    continue
+                    
+                price_int = int(price_match.group(1).replace(",", ""))
+                
+                # タイトルの抽出
+                title = a_tag.get("title")
+                if not title:
+                    # このブロック内のすべてのテキストリンクを探す
+                    title_a = block.find("a", href=item_url, string=True)
+                    if title_a and title_a.text.strip():
+                        title = title_a.text.strip()
+                        
+                img = block.find("img")
+                if not title and img:
+                    title = img.get("alt", "").strip()
+                    
+                if not title:
+                    continue
+                    
+                image_url = img.get("src", "") if img else ""
+                
+                all_items.append({
+                    "title": title,
+                    "url": item_url,
+                    "price": f"{price_int:,}円",
+                    "raw_price": price_int,
+                    "image": image_url,
+                })
+                visited_item_urls.add(item_url)
+
+            # 「次へ」リンクの探索もテキストベースで
+            try:
+                nxt = soup.find("a", string=re.compile(r"次へ"))
+                if nxt and "href" in nxt.attrs:
+                    next_url = urllib.parse.urljoin("https://auctions.yahoo.co.jp", nxt.get("href", ""))
+                    if next_url and next_url not in visited:
+                        urls.append(next_url)
+            except Exception:
+                pass
+
+        if not all_items:
+            logger.info(f"⚠ 落札相場ゼロ件: keyword={keyword}")
+            return None
+
+        prices = [i["raw_price"] for i in all_items]
+        logger.info(f"📊 落札サンプル数: {len(prices)}件 (keyword={keyword})")
         return {
             "max_price": f"{max(prices):,}",
             "avg_price": f"{sum(prices) // len(prices):,}",
             "sample_count": len(prices),
-            "items": fetched
+            "items": all_items,
         }
     except Exception as e:
         logger.error(f"Yahoo Scrape Error: {e}")
         return None
 
 def scrape_yahuoku_active(raw_keyword):
+    """ヤフオク現在開催中検索 (最新のReactランダムクラス名に対応した最強堅牢版)"""
     try:
         keyword = optimize_search_keyword(raw_keyword)
         encoded = urllib.parse.quote(keyword)
         url = f"https://auctions.yahoo.co.jp/search/search?p={encoded}&n=50"
-        res = http_get(url, timeout=15)
+        res = http_get(url)
         if res.status_code != 200: return []
         soup = BeautifulSoup(res.text, "html.parser")
-        product_items = soup.find_all("li", class_="Product")
+        
         items = []
-        for item in product_items:
-            try:
-                title_tag = item.find("a", class_="Product__titleLink")
-                price_tag = item.find("span", class_="Product__priceValue")
-                img_tag = item.find("img")
-                bids_tag = item.find("a", class_="Product__bid")
-                time_tag = item.find("span", class_="Product__time")
-                if title_tag and price_tag:
-                    items.append({
-                        "title": title_tag.text.strip(),
-                        "url": urllib.parse.urljoin("https://auctions.yahoo.co.jp", title_tag.get("href", "#")),
-                        "price": price_tag.text.strip(),
-                        "image": img_tag.get("src", "") if img_tag else "",
-                        "bids": bids_tag.text.strip() if bids_tag else "0",
-                        "end_time": time_tag.text.strip() if time_tag else "---"
-                    })
-            except: continue
+        visited_item_urls = set()
+        
+        for a_tag in soup.find_all("a", href=re.compile(r"auctions\.yahoo\.co\.jp/jp/auction/[a-zA-Z0-9]+")):
+            item_url = a_tag.get("href")
+            if item_url in visited_item_urls:
+                continue
+            
+            block = a_tag.parent
+            is_valid_block = False
+            for _ in range(10):
+                if not block: break
+                text = block.get_text(strip=True)
+                # 開催中のブロックには「円」と「終了」または入札履歴リンクが含まれる
+                if "円" in text and ("終了" in text or block.find("a", href=re.compile(r"bid_hist"))) and len(text) < 1000:
+                    is_valid_block = True
+                    break
+                block = block.parent
+                
+            if not is_valid_block or not block:
+                continue
+                
+            text = block.get_text(separator=" ", strip=True)
+            
+            # 価格の抽出 (最初に出現する「xxx円」を現在価格、もし「即決」があれば即決価格)
+            prices = re.findall(r"([\d,]+)\s*円", text)
+            if not prices:
+                continue
+                
+            current_price = f"{prices[0]}円"
+            buy_now_price = f"{prices[1]}円" if len(prices) > 1 and "即決" in text else None
+            
+            # 入札件数
+            bids = "0"
+            bid_link = block.find("a", href=re.compile(r"bid_hist"))
+            if bid_link:
+                bids_text = re.sub(r"\D", "", bid_link.get_text(strip=True))
+                if bids_text: bids = bids_text
+            else:
+                m_bids = re.search(r"入札\s*(\d+)", text)
+                if m_bids: bids = m_bids.group(1)
+                
+            # 終了時間
+            end_time = "---"
+            m_end = re.search(r"(\d{1,2}/\d{1,2}\s+\d{1,2}:\d{1,2})\s*終了", text)
+            if m_end:
+                end_time = m_end.group(1)
+            else:
+                m_left = re.search(r"残り\s*([0-9]+[日時間分]+)", text)
+                if m_left: end_time = f"残り{m_left.group(1)}"
+
+            # タイトルと画像
+            title = a_tag.get("title")
+            if not title:
+                title_a = block.find("a", href=item_url, string=True)
+                if title_a and title_a.text.strip():
+                    title = title_a.text.strip()
+                    
+            img = block.find("img")
+            if not title and img:
+                title = img.get("alt", "").strip()
+                
+            if not title:
+                continue
+                
+            image_url = img.get("src", "") if img else ""
+
+            items.append({
+                "title": title,
+                "url": item_url,
+                "price": current_price,
+                "buy_now_price": buy_now_price,
+                "image": image_url,
+                "bids": bids,
+                "end_time": end_time
+            })
+            visited_item_urls.add(item_url)
+            
         return items
     except Exception as e:
+        logger.error(f"Active Scrape Error: {e}")
         return []
 
 def scrape_mercari_prices(raw_keyword: str):
+    """メルカリ販売中価格取得"""
     try:
         keyword = optimize_search_keyword(raw_keyword)
         encoded = urllib.parse.quote(keyword)
         url = f"https://jp.mercari.com/search?keyword={encoded}&status=on_sale&order=price_asc"
-        res = http_get(url, timeout=15)
+        res = http_get(url)
         if res.status_code != 200: return None
         soup = BeautifulSoup(res.text, "html.parser")
         items_fetched = []
@@ -284,13 +363,12 @@ def scrape_mercari_prices(raw_keyword: str):
         if not items_fetched: return None
         prices = [int(i["price"]) for i in items_fetched]
         return {
-            "min_price": min(prices),
-            "avg_price": sum(prices) // len(prices),
+            "min_price": min(prices), 
+            "avg_price": sum(prices) // len(prices), 
             "sample_count": len(prices),
             "items": items_fetched
         }
-    except Exception as e:
-        return None
+    except: return None
 
 # ==========================
 # API Routes
@@ -301,257 +379,148 @@ def index():
         "apiKey": os.getenv("FIREBASE_API_KEY"),
         "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
         "projectId": os.getenv("FIREBASE_PROJECT_ID"),
-        "appId": os.getenv("FIREBASE_APP_ID")
+        "appId": os.getenv("FIREBASE_APP_ID"),
     }
     return render_template("index.html", config=firebase_config)
+
+@app.route("/api/monitor", methods=["POST"])
+@login_required
+def api_monitor():
+    url = request.json.get("url")
+    res = scrape_premium_bandai(url)
+    if not res: return jsonify({"error": "商品情報の取得に失敗しました"}), 500
+    return jsonify({"preview": res})
+
+@app.route("/api/watchlist", methods=["POST"])
+@login_required
+def api_add_watchlist():
+    if not db: return jsonify({"error": "Firebaseが初期化されていません"}), 503
+    data = request.json
+    uid = request.user["uid"]
+    db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("watchlist").add({
+        **data, "createdAt": firestore.SERVER_TIMESTAMP, "updatedAt": firestore.SERVER_TIMESTAMP
+    })
+    return jsonify({"message": "OK"})
 
 @app.route("/api/profit-check", methods=["POST"])
 @login_required
 def api_profit_check():
-    try:
-        data = request.get_json() or {}
-        keyword = (data.get("keyword") or "").strip()
-        s_sell = int(data.get("shipping_sell") or 600)
-        s_buy = int(data.get("shipping_buy") or 600)
-        manual_buy = data.get("manual_buy_price")
+    data = request.get_json() or {}
+    keyword = (data.get("keyword") or "").strip()
+    s_sell = int(data.get("shipping_sell") or 600)
+    s_buy = int(data.get("shipping_buy") or 600)
+    manual_buy = data.get("manual_buy_price")
+    yahoo_data = scrape_yahuoku_closed(keyword)
+    if not yahoo_data: return jsonify({"error": "ヤフオク相場なし"}), 200
+    
+    mercari_data = None
+    buy_price = 0
+    if manual_buy is not None and str(manual_buy).isdigit():
+        buy_price = int(manual_buy)
+    else:
+        mercari_data = scrape_mercari_prices(keyword)
+        buy_price = mercari_data["min_price"] if mercari_data else 0
 
-        yahoo_data = scrape_yahuoku_closed(keyword)
-        if not yahoo_data:
-            return jsonify({"error": "ヤフオクで落札データが見つかりませんでした。キーワードを具体的にしてください。"}), 200
+    def calc(sell_price_str):
+        s_val = int(sell_price_str.replace(",", ""))
+        fee = int(s_val * 0.088)
+        total_cost = buy_price + s_buy + s_sell + fee
+        profit = s_val - total_cost
+        roi = round((profit / total_cost) * 100, 1) if total_cost > 0 else 0
+        p_rate = round((profit / s_val) * 100, 1) if s_val > 0 else 0
+        verdict = "BUY" if profit > 2000 and roi > 15 else ("CONSIDER" if profit > 0 else "LOSS")
+        label = "激アツ！" if verdict == "BUY" else ("検討あり" if verdict == "CONSIDER" else "対象外")
+        return {
+            "profit": profit, "roi": roi, "profit_rate": p_rate, "buy_price": buy_price, 
+            "sell_price": s_val, "total_cost": total_cost, "yahoo_fee": fee,
+            "verdict": verdict, "verdict_label": label
+        }
 
-        mercari_data = None
-        buy_price = 0
-        if manual_buy is not None and str(manual_buy).isdigit():
-            buy_price = int(manual_buy)
-        else:
-            mercari_data = scrape_mercari_prices(keyword)
-            buy_price = mercari_data["min_price"] if mercari_data else 0
-
-        def calc(sell_price_str):
-            s_val = int(sell_price_str.replace(",", ""))
-            fee = int(s_val * 0.088)
-            total_cost = buy_price + s_buy + s_sell + fee
-            profit = s_val - total_cost
-            roi = round((profit / total_cost) * 100, 1) if total_cost > 0 else 0
-            p_rate = round((profit / s_val) * 100, 1) if s_val > 0 else 0
-            verdict = "LOSS"
-            label = "仕入れ対象外"
-            if buy_price > 0:
-                if profit > 2000 and roi > 15:
-                    verdict = "BUY"
-                    label = "激アツ！仕入れ推奨"
-                elif profit > 0:
-                    verdict = "CONSIDER"
-                    label = "検討の余地あり"
-            else:
-                label = "仕入れ価格不明"
-            return {
-                "profit": profit, "roi": roi, "profit_rate": p_rate,
-                "buy_price": buy_price, "sell_price": s_val, "total_cost": total_cost,
-                "shipping_buy": s_buy, "shipping_sell": s_sell, "yahoo_fee": fee,
-                "verdict": verdict, "verdict_label": label
-            }
-
-        return jsonify({
-            "keyword": keyword,
-            "yahoo_data": yahoo_data,
-            "mercari_data": mercari_data,
-            "profit_avg": calc(yahoo_data["avg_price"]),
-            "profit_max": calc(yahoo_data["max_price"])
-        })
-    except Exception as e:
-        logger.error(f"Profit Check API Error: {e}")
-        return jsonify({"error": f"内部エラーが発生しました: {str(e)}"}), 500
+    return jsonify({
+        "keyword": keyword, "yahoo_data": yahoo_data, "mercari_data": mercari_data,
+        "profit_avg": calc(yahoo_data["avg_price"]), "profit_max": calc(yahoo_data["max_price"])
+    })
 
 @app.route("/api/scout", methods=["POST"])
 @login_required
 def api_scout():
+    keyword = request.json.get("keyword")
+    market = scrape_yahuoku_closed(keyword)
+    if not market: return jsonify({"error": "データなし"}), 200
+    if not agent: return jsonify({"error": "AI機能が現在利用できません。環境変数を確認してください。"}), 503
     try:
-        keyword = request.json.get("keyword")
-        market = scrape_yahuoku_closed(keyword)
-        if not market: return jsonify({"error": "相場データが見つかりません"}), 200
-        if not agent: return jsonify({"error": "AI Agentが初期化されていません"}), 503
         thread = project_client.agents.threads.create()
-        prompt = f"「{keyword}」のヤフオク相場（平均{market['avg_price']}円）を元に鑑定して。JSON形式で回答。キー: target_buy_price, profitability, ai_advice"
+        prompt = f"「{keyword}」のヤフオク相場（平均{market['avg_price']}円）を元に鑑定。JSON形式で: target_buy_price, profitability, ai_advice"
         project_client.agents.messages.create(thread_id=thread.id, role="user", content=prompt)
         project_client.agents.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
         msgs = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
         for m in msgs:
             if m.role == "assistant" and m.text_messages:
                 match = re.search(r"\{.*\}", m.text_messages[0].text.value, re.DOTALL)
-                if match:
-                    appraisal = json.loads(match.group())
-                    return jsonify({"appraisal": appraisal, "market_data": market, "thread_id": thread.id})
-        return jsonify({"error": "AI解析に失敗しました"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/scout/followup", methods=["POST"])
-@login_required
-def api_scout_followup():
-    tid = request.json.get("thread_id")
-    msg = request.json.get("message")
-    try:
-        project_client.agents.messages.create(thread_id=tid, role="user", content=msg)
-        project_client.agents.runs.create_and_process(thread_id=tid, agent_id=agent.id)
-        msgs = project_client.agents.messages.list(thread_id=tid, order=ListSortOrder.DESCENDING)
-        for m in msgs:
-            if m.role == "assistant" and m.text_messages:
-                return jsonify({"answer": m.text_messages[0].text.value})
-        return jsonify({"answer": "応答が得られませんでした"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/auctions/active", methods=["POST"])
-@login_required
-def api_auctions_active():
-    keyword = request.json.get("keyword")
-    items = scrape_yahuoku_active(keyword)
-    return jsonify({"items": items})
+                if match: return jsonify({"appraisal": json.loads(match.group()), "market_data": market, "thread_id": thread.id})
+        return jsonify({"error": "AI解析失敗"}), 500
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route("/api/keyword-research", methods=["POST"])
 @login_required
 def api_keyword_research():
+    seed = request.json.get("seed", "").strip()
+    web_kws = []
     try:
-        seed = request.json.get("seed", "").strip()
-        by_genre = request.json.get("by_genre", False)
-        focus_profit = request.json.get("focus_profit", False)
-
-        # 1. Yahooサジェスト取得
-        web_kws = []
-        try:
-            res = http_get(
-                f"https://sugg.search.yahoo.co.jp/sg/?output=fxjson&command={urllib.parse.quote(seed)}",
-                timeout=5
-            )
-            if res.status_code == 200:
-                web_kws = [r[0] for r in res.json()[1]]
-        except: pass
-
-        # 2. AIによる深掘り
-        ai_kws = []
-        genre_data = {}
-        if agent:
-            try:
-                thread = project_client.agents.threads.create()
-                prompt = f"「{seed}」に関連する、ヤフオクやメルカリで需要の高いキーワードを10個挙げてください。"
-                if by_genre:
-                    prompt += "ジャンル名: [キーワードリスト] のJSON形式(オブジェクト)で分類して。"
-                else:
-                    prompt += "JSON配列 ['kw1', 'kw2'...] 形式で出して。"
-                project_client.agents.messages.create(thread_id=thread.id, role="user", content=prompt)
-                project_client.agents.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
-                msgs = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
-                # ✅ 修正箇所: msgs はイテラブル。直接 .text_messages にアクセスするとエラーになる
-                for m in msgs:
-                    if m.role == "assistant" and m.text_messages:
-                        text = m.text_messages[0].text.value
-                        if by_genre:
-                            match = re.search(r"\{.*\}", text, re.DOTALL)
-                            if match: genre_data = json.loads(match.group())
-                        else:
-                            match = re.search(r"\[.*\]", text, re.DOTALL)
-                            if match: ai_kws = json.loads(match.group())
-                        break
-            except Exception as e:
-                logger.warning(f"AI keyword research failed: {e}")
-
-        return jsonify({
-            "web": web_kws,
-            "ai": ai_kws,
-            "profit": ai_kws if focus_profit else [],
-            "by_genre": genre_data
-        })
-    except Exception as e:
-        logger.error(f"keyword-research error: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/keyword-research/seeds", methods=["POST"])
-@login_required
-def api_keyword_seeds():
-    try:
-        if not agent:
-            return jsonify({"seeds": ["ガンプラ", "CSM", "ポケカ", "メタルビルド"]})
-        thread = project_client.agents.threads.create()
-        project_client.agents.messages.create(
-            thread_id=thread.id, role="user",
-            content="今の日本でせどりで稼ぎやすいジャンルや商品を15個、JSON配列 ['品名', '品名'...] 形式のみで出力して。"
-        )
-        project_client.agents.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
-        msgs = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
-        for m in msgs:
-            if m.role == "assistant" and m.text_messages:
-                match = re.search(r"\[.*\]", m.text_messages[0].text.value, re.DOTALL)
-                if match:
-                    return jsonify({"seeds": json.loads(match.group())})
-        return jsonify({"seeds": ["ガンプラ", "CSM", "ポケカ", "メタルビルド"]})
-    except:
-        return jsonify({"seeds": ["ガンプラ", "CSM", "ポケカ", "メタルビルド"]})
+        res = http_get(f"https://sugg.search.yahoo.co.jp/sg/?output=fxjson&command={urllib.parse.quote(seed)}", timeout=5)
+        if res.status_code == 200: web_kws = [r[0] for r in res.json()[1]]
+    except: pass
+    return jsonify({"web": web_kws, "ai": [], "profit": [], "by_genre": {}})
 
 @app.route("/api/recommendations", methods=["GET"])
 @login_required
 def api_recs():
     return jsonify({"recommendations": [
-        {"title": "METAL BUILD エヴァンゲリオン初号機", "url": "https://p-bandai.jp/item/item-1000210000/", "reason": "再販期待度が高く、中古相場も安定しています。"},
-        {"title": "CSM ファイズギア ver.2", "url": "https://p-bandai.jp/item/item-1000190000/", "reason": "人気が高く、在庫復活時の争奪戦が予想されます。"}
+        {"title": "METAL BUILD エヴァンゲリオン初号機", "url": "https://p-bandai.jp/item/item-1000210000/", "reason": "再販需要高"},
+        {"title": "CSM ファイズギア ver.2", "url": "https://p-bandai.jp/item/item-1000190000/", "reason": "固定ファン多"}
     ]})
 
 @app.route("/api/test-notification", methods=["POST"])
 @login_required
 def api_test_notify():
+    if not line_bot_api or not db: return jsonify({"error": "システム連携が不完全です"}), 503
     try:
-        if not line_bot_api:
-            return jsonify({"error": "LINE Bot SDKが初期化されていません"}), 503
         uid = request.user["uid"]
         snap = db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("settings").document("line").get()
-        # Firestore Admin SDK の DocumentSnapshot.exists は「プロパティ(bool)」なので
-        # exists() と呼び出すと 'bool' object is not callable エラーになる点に注意
-        if not snap.exists:
-            return jsonify({"error": "LINE IDが未設定です"}), 400
-        doc = snap.to_dict() or {}
-        line_id = doc.get("lineUserId")
-        if not line_id:
-            return jsonify({"error": "Firestore上のLINE IDが空です"}), 400
-        line_bot_api.push_message(line_id, TextSendMessage(text="✅ システム接続テスト完了\n通知設定は正常です。"))
+        if not snap.exists(): return jsonify({"error": "LINE ID未設定"}), 400
+        line_id = snap.data().get("lineUserId")
+        line_bot_api.push_message(line_id, TextSendMessage(text="✅ 通知テスト成功"))
         return jsonify({"message": "OK"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/watchlist", methods=["POST"])
-@login_required
-def api_add_watchlist():
-    try:
-        data = request.json
-        uid = request.user["uid"]
-        db.collection("artifacts").document(APP_ID).collection("users").document(uid).collection("watchlist").add({
-            **data,
-            "createdAt": firestore.SERVER_TIMESTAMP,
-            "updatedAt": firestore.SERVER_TIMESTAMP
-        })
-        return jsonify({"message": "OK"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ==========================
-# APScheduler 起動 (gunicorn対応)
-# gunicornは if __name__ ブロックを実行しないため、モジュールレベルで起動する。
-# AppRunnerのデフォルトはworker=1なので多重起動は通常起きない。
-# 万が一マルチワーカー構成にする場合は DISABLE_SCHEDULER=true で無効化すること。
+# 定期監視ジョブ (Scheduler)
 # ==========================
-if os.getenv("DISABLE_SCHEDULER") != "true":
-    try:
-        _scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
-        # TODO: ジョブをここに追加する
-        # _scheduler.add_job(check_watchlist_job, 'interval', minutes=5)
-        _scheduler.start()
-        logger.info("✅ APScheduler 起動完了")
-    except Exception as e:
-        logger.error(f"❌ APScheduler 起動失敗: {e}")
+# AppRunner (Gunicorn) 等で確実に起動するよう、外側で start させる
+scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
+
+def update_inventory_job():
+    """30分おきに実行されるメインジョブ（実装予定）"""
+    logger.info("🕒 定期更新ジョブ実行中...")
+    pass
+
+scheduler.add_job(
+    func=update_inventory_job,
+    trigger="interval",
+    minutes=30,
+    id='inventory_update_task',
+    replace_existing=True
+)
+
+if not scheduler.running:
+    scheduler.start()
+    logger.info("🚀 バックグラウンドスケジューラ起動")
 
 # ==========================
-# 起動 (flask直接実行時のみ)
+# 起動設定
 # ==========================
 if __name__ == "__main__":
+    # ローカル実行用
     port = int(os.environ.get("PORT", 8080))
-    logger.info(f"🚀 サーバー起動 (Port: {port})")
+    logger.info(f"🚀 ローカルサーバー起動 (Port: {port})")
     app.run(host="0.0.0.0", port=port, debug=False)
