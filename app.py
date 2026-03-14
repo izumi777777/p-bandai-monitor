@@ -513,16 +513,19 @@ def scrape_rakuma_prices(raw_keyword: str):
                     continue
 
                 title = ""
+                img_url = ""
                 t_tag = card.find(class_=re.compile(r"name|title", re.I))
                 title = t_tag.get_text(strip=True) if t_tag else ""
+                img_tag = card.find("img")
+                if img_tag:
+                    img_url = img_tag.get("src") or img_tag.get("data-src") or img_tag.get("data-lazy-src") or ""
                 if not title:
-                    img = card.find("img")
-                    title = img.get("alt", "") if img else ""
+                    title = img_tag.get("alt", "") if img_tag else ""
                 
                 a_tag = card.find("a", href=True)
                 item_url = urllib.parse.urljoin("https://fril.jp", a_tag["href"]) if a_tag else ""
                 
-                items_fetched.append({"title": title or "ラクマ商品", "price": price_str, "url": item_url})
+                items_fetched.append({"title": title or "ラクマ商品", "price": price_str, "url": item_url, "image": img_url})
             except Exception:
                 continue
 
@@ -533,13 +536,19 @@ def scrape_rakuma_prices(raw_keyword: str):
                 p_val = re.sub(r"\D", "", tag)
                 if p_val and p_val.isdigit() and 100 <= int(p_val) <= 9_999_999:
                     parent_a = tag.find_parent("a")
+                    parent_img = tag.find_parent(lambda t: t.find("img"))
+                    fb_img = ""
+                    if parent_img:
+                        fi = parent_img.find("img")
+                        fb_img = fi.get("src") or fi.get("data-src") or "" if fi else ""
                     items_fetched.append({
                         "title": "ラクマ商品",
                         "price": p_val,
                         "url": urllib.parse.urljoin(
                             "https://fril.jp",
                             parent_a["href"] if parent_a and parent_a.get("href") else ""
-                        )
+                        ),
+                        "image": fb_img,
                     })
                     if len(items_fetched) >= 30:
                         break
@@ -566,6 +575,77 @@ def scrape_rakuma_prices(raw_keyword: str):
 # ==========================
 # API Routes
 # ==========================
+
+# --------------------------------------------------------
+# 画像プロキシ（fril.jpなど Referer 制限があるサイト向け）
+# --------------------------------------------------------
+ALLOWED_IMAGE_HOSTS = {
+    "fril.jp",
+    "img.fril.jp",
+    "static.fril.jp",
+    "auctions.c.yimg.jp",
+    "item-shopping.c.yimg.jp",
+    "aucview.aucfan.com",
+}
+
+@app.route("/api/proxy-image")
+def proxy_image():
+    """
+    クエリパラメータ ?url=<画像URL> を受け取り、
+    サーバーサイドで画像を取得してクライアントに転送する。
+    許可ホスト以外はブロックする。
+    """
+    from flask import Response
+    img_url = request.args.get("url", "").strip()
+    if not img_url:
+        return ("url parameter required", 400)
+
+    try:
+        parsed = urllib.parse.urlparse(img_url)
+    except Exception:
+        return ("invalid url", 400)
+
+    if parsed.scheme not in ("http", "https"):
+        return ("invalid scheme", 400)
+
+    hostname = (parsed.hostname or "").lower()
+    # サブドメインも含めて許可ホストチェック
+    allowed = any(
+        hostname == h or hostname.endswith("." + h)
+        for h in ALLOWED_IMAGE_HOSTS
+    )
+    if not allowed:
+        logger.warning(f"⚠️ 画像プロキシ: 許可外ホスト {hostname}")
+        return ("host not allowed", 403)
+
+    try:
+        referer = f"{parsed.scheme}://{parsed.netloc}/"
+        img_res = requests.get(
+            img_url,
+            impersonate="chrome120",
+            timeout=10,
+            headers={
+                "Referer": referer,
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            },
+        )
+        if img_res.status_code != 200:
+            return (f"upstream {img_res.status_code}", 502)
+
+        content_type = img_res.headers.get("Content-Type", "image/jpeg")
+        return Response(
+            img_res.content,
+            status=200,
+            headers={
+                "Content-Type": content_type,
+                "Cache-Control": "public, max-age=3600",
+            },
+        )
+    except Exception as e:
+        logger.error(f"❌ 画像プロキシエラー: {e}")
+        return ("fetch error", 502)
+
+
 @app.route("/")
 def index():
     firebase_config = {
@@ -852,6 +932,446 @@ def api_scout_followup():
         logger.error(f"AI追加質問エラー: {e}")
         return jsonify({"error": str(e)}), 500
     
+
+# ========================================================
+# キーワードリサーチ API
+# ========================================================
+
+def fetch_yahoo_suggest(keyword: str) -> list:
+    """Yahoo!検索オートコンプリートからサジェストキーワードを取得"""
+    try:
+        encoded = urllib.parse.quote(keyword)
+        url = f"https://search.yahoo.co.jp/search?p={encoded}&ei=UTF-8"
+        res = requests.get(url, impersonate="chrome120", timeout=10)
+        if res.status_code != 200:
+            return []
+        soup = BeautifulSoup(res.text, "html.parser")
+        suggestions = []
+        # Yahoo検索の関連キーワードセクション
+        for tag in soup.select("li.Suggestion__item, .RelatedSearches a, .suggestList li, [data-ylk*='suggest'] span"):
+            text = tag.get_text(strip=True)
+            if text and text != keyword and len(text) < 50:
+                suggestions.append(text)
+        if not suggestions:
+            # フォールバック: Yahoo suggestAPI
+            api_url = f"https://ff.search.yahoo.com/gossip?output=json&command={encoded}"
+            api_res = requests.get(api_url, impersonate="chrome120", timeout=8)
+            if api_res.status_code == 200:
+                try:
+                    api_data = api_res.json()
+                    gossip = api_data.get("gossip", {}).get("results", [])
+                    suggestions = [g.get("key", "") for g in gossip if g.get("key")]
+                except Exception:
+                    pass
+        return list(dict.fromkeys(suggestions))[:15]
+    except Exception as e:
+        logger.error(f"Yahoo suggest エラー: {e}")
+        return []
+
+
+def ai_keyword_research(seed: str, by_genre: bool, focus_profit: bool) -> dict:
+    """Azure AI Agent でキーワード候補・トレンド分析を生成"""
+    try:
+        thread = project_client.agents.threads.create()
+
+        profit_instruction = ""
+        if focus_profit:
+            profit_instruction = """
+さらに "profit_keywords" キーに、以下の条件を満たすキーワードを10件リストアップしてください。
+- 2024〜2025年の日本で特にヤフオク・メルカリ・ラクマで取引が活発
+- 仕入れ（リサイクルショップ・ラクマ等）と転売（ヤフオク等）の価格差が大きく利ザヤが取りやすい
+- 需要が高く在庫が枯渇しやすいもの（プレ値がつきやすい）
+例：CSM変身ベルト、METAL BUILD、初代ゲームボーイ、ガンプラ限定品 等
+各キーワードには "reason"（なぜ今稼ぎやすいか・30文字以内）と "score"（A/B/C）も付けてください。
+"""
+
+        genre_instruction = ""
+        if by_genre:
+            genre_instruction = """
+また "by_genre" キーに、AIキーワード候補をジャンル別にグルーピングして返してください。
+例: {"ガンプラ": ["HG 水星の魔女", ...], "CSM": [...], "ゲーム機": [...]}
+"""
+
+        prompt = f"""
+あなたはヤフオク・メルカリ・ラクマ専門のせどり・転売リサーチャーです。
+シードキーワード「{seed}」をもとに、ヤフオクや中古市場で需要が高い関連キーワードを提案してください。
+
+必ず以下のJSONフォーマットのみを出力してください（Markdownの ```json 等の装飾は絶対に含めないでください）。
+
+{{
+  "ai_keywords": ["キーワード1", "キーワード2", ...],  // 15件以内の関連キーワード候補
+  "trend_analysis": {{
+    "summary": "このジャンルの最近のトレンドについての短い説明（80文字以内）",
+    "hot_items": [
+      {{"name": "商品名", "reason": "注目理由（30文字以内）", "score": "A/B/C"}}
+    ]  // 5件
+  }},
+  "profit_keywords": [],  // focus_profit=trueのときのみ使用
+  "by_genre": {{}}         // by_genre=trueのときのみ使用
+}}
+{profit_instruction}
+{genre_instruction}
+"""
+
+        project_client.agents.messages.create(
+            thread_id=thread.id, role="user", content=prompt
+        )
+        project_client.agents.runs.create_and_process(
+            thread_id=thread.id, agent_id=agent.id
+        )
+        messages = project_client.agents.messages.list(
+            thread_id=thread.id, order=ListSortOrder.DESCENDING
+        )
+
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                text = m.text_messages[0].text.value
+                try:
+                    match = re.search(r"\{.*\}", text, re.DOTALL)
+                    if match:
+                        return json.loads(match.group())
+                except Exception as e:
+                    logger.error(f"キーワードリサーチ JSONパースエラー: {e}\n raw: {text[:300]}")
+        return {}
+    except Exception as e:
+        logger.error(f"ai_keyword_research エラー: {e}")
+        return {}
+
+
+import xml.etree.ElementTree as ET
+
+# ========================================================
+# リアルタイムトレンドデータ取得（RSS/フィード）
+# ========================================================
+
+def fetch_google_trends_japan() -> list:
+    """
+    Google Trends Japan RSS から急上昇ワードを取得。
+    戻り値: [{"keyword": str, "traffic": str}]
+    """
+    try:
+        url = "https://trends.google.co.jp/trending/rss?geo=JP"
+        res = requests.get(url, impersonate="chrome120", timeout=10,
+                           headers={"Accept": "application/rss+xml,application/xml,*/*"})
+        if res.status_code != 200:
+            logger.warning(f"Google Trends RSS HTTP {res.status_code}")
+            return []
+
+        root = ET.fromstring(res.text)
+        ns = {"ht": "https://trends.google.com/trending/rss"}
+        items = root.findall(".//item")
+        results = []
+        for item in items[:20]:
+            title   = (item.findtext("title") or "").strip()
+            traffic = (item.findtext("ht:approx_traffic", namespaces=ns) or "").strip()
+            if title:
+                results.append({"keyword": title, "traffic": traffic})
+        logger.info(f"📈 Google Trends JP: {len(results)}件取得")
+        return results
+    except Exception as e:
+        logger.error(f"Google Trends 取得エラー: {e}")
+        return []
+
+
+def fetch_youtube_trending_japan() -> list:
+    """
+    YouTube 日本の急上昇動画フィード（公開RSS）からタイトルを取得。
+    戻り値: [{"title": str, "url": str}]
+    """
+    try:
+        url = "https://www.youtube.com/feeds/videos.xml?chart=mostpopular&regionCode=JP&hl=ja&gl=JP"
+        res = requests.get(url, impersonate="chrome120", timeout=10,
+                           headers={"Accept": "application/atom+xml,application/xml,*/*"})
+        if res.status_code != 200:
+            logger.warning(f"YouTube trending RSS HTTP {res.status_code}")
+            return []
+
+        root = ET.fromstring(res.text)
+        ns = {"atom": "http://www.w3.org/2005/Atom",
+              "media": "http://search.yahoo.com/mrss/"}
+        entries = root.findall("atom:entry", ns)
+        results = []
+        for entry in entries[:20]:
+            title_el = entry.find("atom:title", ns)
+            link_el  = entry.find("atom:link", ns)
+            if title_el is not None and title_el.text:
+                results.append({
+                    "title": title_el.text.strip(),
+                    "url":   link_el.get("href", "") if link_el is not None else "",
+                })
+        logger.info(f"📺 YouTube急上昇JP: {len(results)}件取得")
+        return results
+    except Exception as e:
+        logger.error(f"YouTube trending 取得エラー: {e}")
+        return []
+
+
+def fetch_nhk_news_topics() -> list:
+    """
+    NHK NEWS RSS から直近の主要ニュースタイトルを取得（TV話題の代替）。
+    戻り値: [{"title": str}]
+    """
+    try:
+        # カテゴリ: 0=主要, 5=社会
+        results = []
+        for cat in ["0", "5"]:
+            url = f"https://www3.nhk.or.jp/rss/news/cat{cat}.xml"
+            res = requests.get(url, impersonate="chrome120", timeout=8,
+                               headers={"Accept": "application/rss+xml,*/*"})
+            if res.status_code != 200:
+                continue
+            root = ET.fromstring(res.text)
+            for item in root.findall(".//item")[:10]:
+                title = (item.findtext("title") or "").strip()
+                if title:
+                    results.append({"title": title})
+        logger.info(f"📰 NHKニュース: {len(results)}件取得")
+        return results[:15]
+    except Exception as e:
+        logger.error(f"NHK RSS 取得エラー: {e}")
+        return []
+
+
+def ai_media_keyword_analysis(
+    google_trends: list,
+    youtube_items: list,
+    nhk_news: list,
+    category_hint: str,
+) -> dict:
+    """
+    リアルタイムで取得したトレンドデータをAIに渡し、
+    ヤフオクで売れそうなキーワードを抽出・分類させる。
+    """
+    try:
+        google_text  = "\n".join([f"・{t['keyword']}（{t['traffic']}）" for t in google_trends]) or "取得なし"
+        youtube_text = "\n".join([f"・{v['title']}" for v in youtube_items]) or "取得なし"
+        nhk_text     = "\n".join([f"・{n['title']}" for n in nhk_news]) or "取得なし"
+
+        thread = project_client.agents.threads.create()
+        prompt = f"""
+あなたはヤフオク・メルカリ・ラクマの中古市場に精通したせどりリサーチャーです。
+対象カテゴリ: {category_hint}
+
+以下は今日のリアルタイムトレンドデータです。
+
+【Google 急上昇ワード（日本）】
+{google_text}
+
+【YouTube 急上昇動画（日本）タイトル】
+{youtube_text}
+
+【NHKニュース 最新トピック】
+{nhk_text}
+
+これらのトレンドデータを分析し、ヤフオクや中古市場で需要が上がりそうな商品・キーワードを抽出してください。
+
+判断基準:
+- アニメ・ゲーム・映画に関連するグッズ・フィギュア
+- 芸能人・インフルエンサーが紹介した商品
+- ニュースで取り上げられたことで需要が増えた商品
+- 対象カテゴリ外でも「今買われそうな中古品」があれば含める
+
+必ず以下のJSONフォーマットのみを出力してください（Markdownの ```json 等の装飾は絶対に含めないでください）。
+{{
+  "media_keywords": [
+    {{
+      "keyword": "ヤフオク検索用キーワード（具体的な商品名・型番・シリーズ名）",
+      "source": "Google/YouTube/NHK/TV のどれか",
+      "reason": "なぜ今注目か（25文字以内）",
+      "heat": "🔥 or 🔥🔥 or 🔥🔥🔥"
+    }}
+  ]
+}}
+media_keywords は最大15件。関係ないトレンドは無視し、中古市場に関係しそうなものだけを厳選してください。
+"""
+        project_client.agents.messages.create(thread_id=thread.id, role="user", content=prompt)
+        project_client.agents.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
+        messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
+
+        for m in messages:
+            if m.role == "assistant" and m.text_messages:
+                text = m.text_messages[0].text.value
+                try:
+                    match = re.search(r"\{.*\}", text, re.DOTALL)
+                    if match:
+                        return json.loads(match.group())
+                except Exception as e:
+                    logger.error(f"media_keyword_analysis JSONパースエラー: {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"ai_media_keyword_analysis エラー: {e}")
+        return {}
+
+
+@app.route("/api/keyword-suggestions", methods=["POST"])
+@login_required
+def api_keyword_suggestions():
+    """
+    シードキーワードが思いつかないユーザー向け。
+    ① AIの知識ベース（trending/discontinued）
+    ② リアルタイムトレンドデータ（Google/YouTube/NHK）→ AIで分析
+    の2系統を並列取得してまとめて返す。
+    """
+    try:
+        data = request.get_json() or {}
+        category = (data.get("category") or "all").strip()
+
+        category_hint = {
+            "toy":   "おもちゃ・フィギュア・プラモデル（ガンプラ・CSM変身ベルト・METAL BUILD等）",
+            "game":  "ゲーム機・レトロゲーム・ゲームソフト",
+            "audio": "オーディオ・音響機器・レコード・ヴィンテージ家電",
+            "anime": "アニメグッズ・キャラクター商品・同人誌",
+            "other": "雑貨・ブランド品・スポーツ用品・楽器",
+        }.get(category, "ジャンル不問（幅広い中古市場全般）")
+
+        # ① AIの知識ベース（trending / discontinued）
+        def ai_knowledge_based() -> dict:
+            thread = project_client.agents.threads.create()
+            prompt = f"""
+あなたはヤフオク・メルカリ・ラクマの中古市場に精通したせどりリサーチャーです。
+対象カテゴリ: {category_hint}
+
+以下の2種類のキーワードセットをJSONで出力してください。
+
+1. "trending" : 現在（2024〜2025年）のトレンドで取引が活発・需要が高いキーワード
+   - 最近アニメ化・映画化・リメイクされた関連グッズ
+   - 限定品・コラボ商品でプレ値がついているもの
+
+2. "discontinued" : 生産終了・廃盤・旧モデルで希少価値が上がっているキーワード
+   - メーカー終了・シリーズ完結した商品
+   - 旧型だが性能・人気が高く中古需要があるもの
+
+各リストは8〜12件。キーワードは「ヤフオクで実際に検索されるような具体的な商品名・型番・シリーズ名」にしてください。
+
+必ず以下のJSONフォーマットのみを出力してください（Markdownの ```json 等の装飾は絶対に含めないでください）。
+{{
+  "trending": [
+    {{"keyword": "商品名・キーワード", "tag": "タグ（例: アニメ化・SNS話題・限定品）", "heat": "🔥/🔥🔥/🔥🔥🔥"}}
+  ],
+  "discontinued": [
+    {{"keyword": "商品名・キーワード", "tag": "タグ（例: 生産終了・廃番・旧型）", "note": "希少な理由（20文字以内）"}}
+  ]
+}}
+"""
+            project_client.agents.messages.create(thread_id=thread.id, role="user", content=prompt)
+            project_client.agents.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
+            messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
+            for m in messages:
+                if m.role == "assistant" and m.text_messages:
+                    text = m.text_messages[0].text.value
+                    try:
+                        match = re.search(r"\{.*\}", text, re.DOTALL)
+                        if match:
+                            return json.loads(match.group())
+                    except Exception:
+                        pass
+            return {}
+
+        # ② リアルタイムデータ取得 + AI分析
+        def realtime_media_based() -> dict:
+            import concurrent.futures as cf
+            with cf.ThreadPoolExecutor(max_workers=3) as ex:
+                f_google  = ex.submit(fetch_google_trends_japan)
+                f_youtube = ex.submit(fetch_youtube_trending_japan)
+                f_nhk     = ex.submit(fetch_nhk_news_topics)
+                google_data  = f_google.result(timeout=15)
+                youtube_data = f_youtube.result(timeout=15)
+                nhk_data     = f_nhk.result(timeout=12)
+
+            logger.info(f"リアルタイムデータ収集完了: Google={len(google_data)} YouTube={len(youtube_data)} NHK={len(nhk_data)}")
+
+            if not google_data and not youtube_data and not nhk_data:
+                logger.warning("⚠️ リアルタイムデータが全て取得失敗")
+                return {"media_keywords": [], "sources_available": False}
+
+            result = ai_media_keyword_analysis(google_data, youtube_data, nhk_data, category_hint)
+            result["sources_available"] = True
+            result["raw_counts"] = {
+                "google": len(google_data),
+                "youtube": len(youtube_data),
+                "nhk": len(nhk_data),
+            }
+            return result
+
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            f_kb = executor.submit(ai_knowledge_based)
+            f_rt = executor.submit(realtime_media_based)
+            kb_result = f_kb.result(timeout=90)
+            rt_result = f_rt.result(timeout=90)
+
+        return jsonify({
+            "trending":       kb_result.get("trending", []),
+            "discontinued":   kb_result.get("discontinued", []),
+            "media_keywords": rt_result.get("media_keywords", []),
+            "sources_available": rt_result.get("sources_available", False),
+            "raw_counts":     rt_result.get("raw_counts", {}),
+        })
+
+    except Exception as e:
+        logger.error(f"keyword-suggestions エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/keyword-research", methods=["POST"])
+@login_required
+def api_keyword_research():
+    try:
+        data = request.get_json() or {}
+        seed = (data.get("seed") or "").strip()
+        if not seed:
+            return jsonify({"error": "シードキーワードが指定されていません"}), 400
+
+        by_genre    = bool(data.get("by_genre", False))
+        focus_profit = bool(data.get("focus_profit", False))
+
+        # 並列取得（Yahoo suggest + AI）
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_web = executor.submit(fetch_yahoo_suggest, seed)
+            future_ai  = executor.submit(ai_keyword_research, seed, by_genre, focus_profit)
+            web_suggestions = future_web.result(timeout=15)
+            ai_result       = future_ai.result(timeout=60)
+
+        ai_keywords    = ai_result.get("ai_keywords", [])
+        trend_analysis = ai_result.get("trend_analysis", {})
+        profit_kws_raw = ai_result.get("profit_keywords", [])
+        by_genre_data  = ai_result.get("by_genre", {})
+
+        # profit_keywords は文字列リストまたはオブジェクトリストどちらも許容
+        profit_keywords = []
+        profit_details  = []
+        for item in profit_kws_raw:
+            if isinstance(item, str):
+                profit_keywords.append(item)
+            elif isinstance(item, dict):
+                name = item.get("name", "")
+                if name:
+                    profit_keywords.append(name)
+                    profit_details.append({
+                        "name":   name,
+                        "reason": item.get("reason", ""),
+                        "score":  item.get("score", "B"),
+                    })
+
+        logger.info(
+            f"✅ キーワードリサーチ完了: seed={seed} "
+            f"web={len(web_suggestions)} ai={len(ai_keywords)} profit={len(profit_keywords)}"
+        )
+
+        return jsonify({
+            "web":            web_suggestions,
+            "ai":             ai_keywords,
+            "profit":         profit_keywords,
+            "profit_details": profit_details,
+            "trend_analysis": trend_analysis,
+            "by_genre":       by_genre_data,
+        })
+
+    except Exception as e:
+        logger.error(f"キーワードリサーチAPI エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 def send_line_notification(line_user_id: str, message: str):
     if not LINE_TOKEN or not line_user_id:

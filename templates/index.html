@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,27 +8,166 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background:#0a0f1d; color:#e2e8f0; overflow-x: hidden; }
-        .glass { background:rgba(17,24,39,.8); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.05); }
-        .btn-primary { background:#2563eb; transition: all 0.2s; }
-        .btn-primary:hover { background:#3b82f6; transform: translateY(-1px); }
+
+        /* =============================================
+           テーマ変数定義
+        ============================================= */
+        :root, [data-theme="dark"] {
+            --bg-base:        #0a0f1d;
+            --bg-surface:     rgba(17,24,39,0.8);
+            --bg-elevated:    #111827;
+            --bg-input:       #030712;
+            --bg-hover:       rgba(255,255,255,0.04);
+            --border-subtle:  rgba(255,255,255,0.05);
+            --border-ui:      #374151;
+            --text-primary:   #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted:     #4b5563;
+            --tab-border:     rgba(255,255,255,0.10);
+            --scrollbar-thumb: rgba(255,255,255,0.2);
+            --glass-bg:       rgba(17,24,39,0.8);
+            --overlay-bg:     rgba(0,0,0,0.80);
+            --accent:         #2563eb;
+            --shadow-card:    0 4px 24px rgba(0,0,0,0.4);
+        }
+        [data-theme="midnight"] {
+            --bg-base:        #000000;
+            --bg-surface:     rgba(10,0,30,0.9);
+            --bg-elevated:    #0d0022;
+            --bg-input:       #050010;
+            --bg-hover:       rgba(139,92,246,0.06);
+            --border-subtle:  rgba(139,92,246,0.08);
+            --border-ui:      #3b1f6e;
+            --text-primary:   #ede9fe;
+            --text-secondary: #a78bfa;
+            --text-muted:     #5b21b6;
+            --tab-border:     rgba(139,92,246,0.15);
+            --scrollbar-thumb: rgba(139,92,246,0.3);
+            --glass-bg:       rgba(10,0,30,0.9);
+            --overlay-bg:     rgba(0,0,20,0.85);
+            --accent:         #7c3aed;
+            --shadow-card:    0 4px 24px rgba(109,40,217,0.2);
+        }
+        [data-theme="ocean"] {
+            --bg-base:        #020c18;
+            --bg-surface:     rgba(3,28,60,0.85);
+            --bg-elevated:    #031c3c;
+            --bg-input:       #010a14;
+            --bg-hover:       rgba(14,165,233,0.06);
+            --border-subtle:  rgba(14,165,233,0.08);
+            --border-ui:      #0e4a72;
+            --text-primary:   #e0f2fe;
+            --text-secondary: #7dd3fc;
+            --text-muted:     #0c4a6e;
+            --tab-border:     rgba(14,165,233,0.15);
+            --scrollbar-thumb: rgba(14,165,233,0.3);
+            --glass-bg:       rgba(3,28,60,0.85);
+            --overlay-bg:     rgba(1,10,20,0.85);
+            --accent:         #0284c7;
+            --shadow-card:    0 4px 24px rgba(2,132,199,0.15);
+        }
+        [data-theme="forest"] {
+            --bg-base:        #030f09;
+            --bg-surface:     rgba(5,30,18,0.88);
+            --bg-elevated:    #071e11;
+            --bg-input:       #020a05;
+            --bg-hover:       rgba(16,185,129,0.06);
+            --border-subtle:  rgba(16,185,129,0.07);
+            --border-ui:      #064e2c;
+            --text-primary:   #d1fae5;
+            --text-secondary: #6ee7b7;
+            --text-muted:     #065f46;
+            --tab-border:     rgba(16,185,129,0.15);
+            --scrollbar-thumb: rgba(16,185,129,0.3);
+            --glass-bg:       rgba(5,30,18,0.88);
+            --overlay-bg:     rgba(2,10,6,0.85);
+            --accent:         #059669;
+            --shadow-card:    0 4px 24px rgba(5,150,105,0.15);
+        }
+        [data-theme="light"] {
+            --bg-base:        #f1f5f9;
+            --bg-surface:     rgba(255,255,255,0.9);
+            --bg-elevated:    #ffffff;
+            --bg-input:       #f8fafc;
+            --bg-hover:       rgba(0,0,0,0.03);
+            --border-subtle:  rgba(0,0,0,0.07);
+            --border-ui:      #cbd5e1;
+            --text-primary:   #0f172a;
+            --text-secondary: #475569;
+            --text-muted:     #94a3b8;
+            --tab-border:     #e2e8f0;
+            --scrollbar-thumb: rgba(0,0,0,0.15);
+            --glass-bg:       rgba(255,255,255,0.9);
+            --overlay-bg:     rgba(15,23,42,0.6);
+            --accent:         #2563eb;
+            --shadow-card:    0 4px 24px rgba(0,0,0,0.08);
+        }
+
+        /* =============================================
+           テーマ変数の適用
+        ============================================= */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            box-shadow: var(--shadow-card);
+        }
+        /* lightテーマのglass専用 */
+        [data-theme="light"] .glass { background: var(--bg-surface); }
+
+        .btn-primary { background: var(--accent); transition: all 0.2s; }
+        .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        .btn-ghost { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); }
-        .btn-ghost:hover { background:rgba(255,255,255,0.1); }
+        .btn-ghost { background: var(--bg-hover); border: 1px solid var(--border-subtle); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.08); }
+        [data-theme="light"] .btn-ghost:hover { background: rgba(0,0,0,0.05); }
+
         .loader { border-top-color: #3b82f6; animation: spinner 0.6s linear infinite; }
         @keyframes spinner { to { transform: rotate(360deg); } }
-        /* スクロールバーのカスタマイズ */
+
+        /* テーマ適用：ボーダー・bg */
+        [data-theme] .border-white\/5    { border-color: var(--border-subtle) !important; }
+        [data-theme] .border-white\/10   { border-color: var(--tab-border) !important; }
+        [data-theme] .bg-slate-950       { background: var(--bg-input) !important; }
+        [data-theme] .bg-slate-900       { background: var(--bg-elevated) !important; }
+        [data-theme] .border-slate-700   { border-color: var(--border-ui) !important; }
+        [data-theme] .text-slate-400     { color: var(--text-secondary) !important; }
+        [data-theme] .text-slate-500     { color: var(--text-muted) !important; }
+        [data-theme="light"] .text-white  { color: var(--text-primary) !important; }
+        [data-theme="light"] input, [data-theme="light"] textarea { color: var(--text-primary); }
+
+        /* スクロールバー */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { filter: brightness(1.3); }
+
+        /* テーマ切り替えボタン */
+        .theme-btn {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+        .theme-btn:hover { transform: scale(1.15); }
+        .theme-btn.active { border-color: white; box-shadow: 0 0 8px rgba(255,255,255,0.4); }
+        [data-theme="light"] .theme-btn.active { border-color: #1e293b; box-shadow: 0 0 8px rgba(0,0,0,0.3); }
     </style>
   </head>
   <body class="min-h-screen p-4 md:p-6 pb-20">
     
     <div id="login-overlay" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
       <div class="glass rounded-2xl p-8 w-full max-w-sm text-center shadow-2xl">
-        <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">BidMonitor Pro v2.1.0-beta</h1>
+        <h1 class="text-xl font-bold mb-6 text-white text-gradient bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">BidMonitor Pro v2.5.0</h1>
         <button id="login-btn" class="w-full bg-white text-slate-900 font-bold py-4 rounded-xl flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg hover:bg-slate-100">
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google">Continue with Google 
         </button>
@@ -39,52 +178,154 @@
     <header class="max-w-4xl mx-auto flex justify-between items-center mb-6">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-pulse"></div>
-        <h1 class="text-xl font-bold tracking-tight text-white italic">BidMonitor Pro v2.1.0-beta</h1>
+        <h1 class="text-xl font-bold tracking-tight italic" style="color:var(--text-primary)">BidMonitor Pro v2.5.0</h1>
       </div>
-      <button id="logout-btn" class="text-slate-500 hover:text-red-400 text-xs transition-colors hidden px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/50">
-        <i class="fas fa-sign-out-alt mr-2"></i>Logout
-      </button>
+      <div class="flex items-center gap-3">
+        <!-- テーマ切り替え -->
+        <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border" style="border-color:var(--border-subtle);background:var(--bg-surface)">
+            <span class="text-[9px] font-bold mr-1" style="color:var(--text-muted)">THEME</span>
+            <button class="theme-btn active" data-theme-name="dark"    title="Dark（デフォルト）" style="background:linear-gradient(135deg,#0a0f1d,#1e3a5f)"></button>
+            <button class="theme-btn"        data-theme-name="midnight" title="Midnight（ダーク紫）" style="background:linear-gradient(135deg,#0d0022,#3b1f6e)"></button>
+            <button class="theme-btn"        data-theme-name="ocean"   title="Ocean（ディープブルー）" style="background:linear-gradient(135deg,#020c18,#0e4a72)"></button>
+            <button class="theme-btn"        data-theme-name="forest"  title="Forest（ダークグリーン）" style="background:linear-gradient(135deg,#030f09,#064e2c)"></button>
+            <button class="theme-btn"        data-theme-name="light"   title="Light（ライト）" style="background:linear-gradient(135deg,#f1f5f9,#cbd5e1)"></button>
+        </div>
+        <button id="logout-btn" class="text-slate-500 hover:text-red-400 text-xs transition-colors hidden px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/50">
+          <i class="fas fa-sign-out-alt mr-2"></i>Logout
+        </button>
+      </div>
     </header>
 
     <div class="max-w-4xl mx-auto mb-6">
-      <div class="glass rounded-xl p-4 border border-blue-500/20 bg-blue-900/10 flex gap-3 items-start relative overflow-hidden">
+      <div class="glass rounded-xl border border-blue-500/20 bg-blue-900/10 relative overflow-hidden">
         <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-        <i class="fas fa-bullhorn text-blue-400 mt-0.5"></i>
-        <div class="flex-1">
-            <div class="flex items-center justify-between mb-1">
-                <h3 class="text-[11px] font-bold text-blue-400">システムアップデート情報</h3>
-                <span class="text-[9px] text-slate-500">2026/03/12</span>
+
+        <!-- 最新アップデート（常時表示） -->
+        <div class="flex gap-3 items-start p-4">
+            <i class="fas fa-bullhorn text-blue-400 mt-0.5 shrink-0"></i>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-[11px] font-bold text-blue-400">システムアップデート情報</h3>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[9px] text-slate-500">2026/03/14</span>
+                        <button id="changelog-toggle" class="text-[9px] text-blue-400 hover:text-blue-300 border border-blue-500/30 rounded px-2 py-0.5 transition-colors whitespace-nowrap">
+                            履歴を見る <i class="fas fa-chevron-down ml-1" id="changelog-chevron"></i>
+                        </button>
+                    </div>
+                </div>
+                <ul class="text-[10px] text-slate-300 space-y-1 list-disc list-inside">
+                    <li><span class="text-emerald-400 font-bold">New!</span> テーマカラー切り替え機能（Dark / Midnight / Ocean / Forest / Light）を追加。</li>
+                    <li><span class="text-emerald-400 font-bold">New!</span> キーワードリサーチのタブ位置を変更（利ザヤチェッカーとヤフオク監視の間）。</li>
+                    <li><span class="text-emerald-400 font-bold">New!</span> AI候補ボタン：Google Trends・YouTube急上昇・NHKニュースのリアルタイム取得に対応。</li>
+                </ul>
             </div>
-            <ul class="text-[10px] text-slate-300 space-y-1 list-disc list-inside">
-                <li><span class="text-emerald-400 font-bold">New!</span> 利ザヤチェッカーのデータ取得元をラクマ(fril.jp)へ変更しました。</li>
-                <li><span class="text-emerald-400 font-bold">New!</span> ヤフオク監視機能を新設し、プレバンとタブを分離しました。</li>
-                <li>設定画面を独立したタブに移動しました。</li>
-            </ul>
+        </div>
+
+        <!-- 過去履歴（アコーディオン） -->
+        <div id="changelog-history" class="hidden border-t border-blue-500/15 px-4 pb-4 pt-3 space-y-4">
+
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400">v2.4.0</span>
+                    <span class="text-[9px] text-slate-600">2026/03/13</span>
+                </div>
+                <ul class="text-[10px] text-slate-400 space-y-1 list-disc list-inside ml-1">
+                    <li>キーワードリサーチャーにAIトレンド分析パネル（注目商品 Rank A/B/C 付き）を追加。</li>
+                    <li>「AI候補を見る」ボタンを新設。カテゴリ選択 + 今ホットなキーワード／廃番・希少品を提案。</li>
+                    <li><span class="text-amber-400 font-bold">Fix!</span> 利ザヤチェッカー・落札履歴テーブルにサムネイル画像列を追加。</li>
+                    <li><span class="text-amber-400 font-bold">Fix!</span> ラクマ・ヤフオク画像の Referer 制限を回避するバックエンドプロキシ（<code class="text-slate-500">/api/proxy-image</code>）を実装。</li>
+                </ul>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400">v2.3.0</span>
+                    <span class="text-[9px] text-slate-600">2026/03/12</span>
+                </div>
+                <ul class="text-[10px] text-slate-400 space-y-1 list-disc list-inside ml-1">
+                    <li>キーワードリサーチタブを新設。Yahoo! サジェスト＋AI候補の並列取得に対応。</li>
+                    <li>利ザヤチェッカーにラクマ販売中一覧テーブル（画像・価格・URLリンク）を追加。</li>
+                    <li>利ザヤチェッカーに「ヤフオク→ラクマ」「ラクマ→ヤフオク」の方向切り替えタブを追加。</li>
+                </ul>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400">v2.2.0</span>
+                    <span class="text-[9px] text-slate-600">2026/03/12</span>
+                </div>
+                <ul class="text-[10px] text-slate-400 space-y-1 list-disc list-inside ml-1">
+                    <li>利ザヤチェッカーのデータ取得元をラクマ (fril.jp) へ変更。</li>
+                    <li>ヤフオク監視機能を新設し、プレバン監視タブと分離。</li>
+                    <li>設定画面を独立したタブに移動。</li>
+                    <li>開催中追跡タブからウォッチリストへの直接追加に対応。</li>
+                </ul>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400">v2.1.0-beta</span>
+                    <span class="text-[9px] text-slate-600">2026/03/10</span>
+                </div>
+                <ul class="text-[10px] text-slate-400 space-y-1 list-disc list-inside ml-1">
+                    <li>AI相場鑑定（AIせどり鑑定士）タブを追加。ヤフオク落札相場＋推奨仕入れ上限を自動算出。</li>
+                    <li>鑑定結果に対するフォローアップ質問機能（最大2回）を追加。</li>
+                    <li>開催中オークション追跡タブを追加。現在価格・入札数・残り時間をリスト表示。</li>
+                    <li>利ザヤチェッカータブを追加。ヤフオク落札相場とメルカリ最安値から利益を自動計算。</li>
+                </ul>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400">v2.0.0</span>
+                    <span class="text-[9px] text-slate-600">2026/03/01</span>
+                </div>
+                <ul class="text-[10px] text-slate-400 space-y-1 list-disc list-inside ml-1">
+                    <li>Firebase Auth (Google ログイン) によるユーザー認証を実装。</li>
+                    <li>Firestore によるウォッチリストのリアルタイム同期に対応。</li>
+                    <li>CSV インポートによる監視URL一括登録機能を追加（最大5件）。</li>
+                    <li>定期監視ジョブ (APScheduler, 5分間隔) + LINE 通知連携を実装。</li>
+                    <li>プレバン監視ページにAIトレンド商品提案機能を追加。</li>
+                </ul>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400">v1.0.0</span>
+                    <span class="text-[9px] text-slate-600">2026/02/15</span>
+                </div>
+                <ul class="text-[10px] text-slate-400 space-y-1 list-disc list-inside ml-1">
+                    <li>初回リリース。プレミアムバンダイの在庫監視機能を実装。</li>
+                    <li>Azure AI Agent によるスクレイピング結果の解析に対応。</li>
+                    <li>テスト用モックページ (<code class="text-slate-500">/test-item</code>) を実装。</li>
+                </ul>
+            </div>
+
         </div>
       </div>
     </div>
 
-    <div class="max-w-4xl mx-auto flex space-x-2 border-b border-white/10 mb-6 overflow-x-auto custom-scrollbar pb-1">
-        <button id="tab-scout" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+    <div class="max-w-4xl mx-auto flex space-x-2 border-b mb-6 overflow-x-auto custom-scrollbar pb-1" style="border-color:var(--tab-border)">
+        <button id="tab-scout" class="px-5 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap" style="color:var(--text-muted)">
             <i class="fas fa-search-dollar mr-1"></i> AI相場鑑定 <span class="ml-1 text-[8px] bg-yellow-600/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30">PRO</span>
         </button>
-        <button id="tab-active" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+        <button id="tab-active" class="px-5 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap" style="color:var(--text-muted)">
             <i class="fas fa-satellite-dish mr-1"></i> 開催中追跡
         </button>
-        <button id="tab-keyword" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
-            <i class="fas fa-key mr-1"></i> キーワードリサーチ
-        </button>
-        <button id="tab-profit" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+        <button id="tab-profit" class="px-5 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap" style="color:var(--text-muted)">
             <i class="fas fa-coins mr-1"></i> 利ザヤチェッカー
         </button>
-        <button id="tab-yahoo" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+        <button id="tab-keyword" class="px-5 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap" style="color:var(--text-muted)">
+            <i class="fas fa-key mr-1"></i> キーワードリサーチ
+        </button>
+        <button id="tab-yahoo" class="px-5 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap" style="color:var(--text-muted)">
             <i class="fas fa-gavel mr-1"></i> ヤフオク監視
         </button>
-        <button id="tab-monitor" class="px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap opacity-50 hover:opacity-100">
+        <button id="tab-monitor" class="px-5 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap opacity-50 hover:opacity-100" style="color:var(--text-muted)">
             <i class="fas fa-box-open mr-1"></i> プレバン(旧)
         </button>
         <div class="flex-1"></div>
-        <button id="tab-settings" class="px-4 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap">
+        <button id="tab-settings" class="px-4 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap" style="color:var(--text-muted)">
             <i class="fas fa-cog"></i>
         </button>
     </div>
@@ -141,6 +382,71 @@
               <div class="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
               <h2 class="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-2"><i class="fas fa-key mr-1"></i> ヤフオク検索キーワードリサーチャー</h2>
               <p class="text-[11px] text-slate-400 mb-4">シードキーワードを入力すると、関連キーワード候補を取得します。<strong class="text-amber-400/90">「稼ぎやすさ・トレンド重視」</strong>をオンにすると、<strong>現在の日本で需要が高く・利益が出やすい</strong>キーワード・商品を優先して候補に出します。</p>
+
+              <!-- AI候補パネル（シードキーワード提案） -->
+              <div class="mb-5 p-4 rounded-xl bg-slate-900/60 border border-slate-700/60 relative z-10">
+                  <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <div>
+                          <p class="text-[11px] font-bold text-slate-300"><i class="fas fa-lightbulb text-yellow-400 mr-1"></i>キーワードが思いつかない方へ</p>
+                          <p class="text-[10px] text-slate-500 mt-0.5">カテゴリを選んでAIに今熱いキーワードを提案してもらいましょう</p>
+                      </div>
+                      <button id="ai-seed-btn" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-[11px] font-bold rounded-lg transition-all shadow-[0_0_12px_rgba(139,92,246,0.3)] whitespace-nowrap">
+                          <i class="fas fa-magic"></i> AI候補を見る
+                          <div id="ai-seed-loader" class="hidden loader ease-linear rounded-full border-2 border-t-2 border-white h-3 w-3"></div>
+                      </button>
+                  </div>
+                  <!-- カテゴリ選択チップ -->
+                  <div class="flex flex-wrap gap-2 mb-3" id="ai-seed-categories">
+                      <button data-cat="all"   class="seed-cat-btn active-cat px-3 py-1 rounded-full text-[10px] font-bold border transition-all">🌐 すべて</button>
+                      <button data-cat="toy"   class="seed-cat-btn px-3 py-1 rounded-full text-[10px] font-bold border transition-all">🤖 フィギュア/プラモ</button>
+                      <button data-cat="game"  class="seed-cat-btn px-3 py-1 rounded-full text-[10px] font-bold border transition-all">🎮 ゲーム機/レトロ</button>
+                      <button data-cat="audio" class="seed-cat-btn px-3 py-1 rounded-full text-[10px] font-bold border transition-all">🎵 オーディオ機器</button>
+                      <button data-cat="anime" class="seed-cat-btn px-3 py-1 rounded-full text-[10px] font-bold border transition-all">✨ アニメグッズ</button>
+                      <button data-cat="other" class="seed-cat-btn px-3 py-1 rounded-full text-[10px] font-bold border transition-all">📦 その他</button>
+                  </div>
+                  <!-- 結果表示エリア -->
+                  <div id="ai-seed-result" class="hidden space-y-4">
+                      <!-- データソース状態バー -->
+                      <div id="ai-seed-sources" class="hidden flex flex-wrap gap-2 pb-2 border-b border-white/5">
+                          <span class="text-[9px] font-bold text-slate-500 self-center mr-1">取得元:</span>
+                          <span id="src-google"  class="text-[9px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-500"><i class="fab fa-google mr-1"></i>Google Trends</span>
+                          <span id="src-youtube" class="text-[9px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-500"><i class="fab fa-youtube mr-1"></i>YouTube急上昇</span>
+                          <span id="src-nhk"     class="text-[9px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-500"><i class="fas fa-tv mr-1"></i>NHKニュース</span>
+                      </div>
+                      <!-- SNS・メディア話題（リアルタイム） -->
+                      <div id="ai-seed-media-section" class="hidden">
+                          <h4 class="text-[10px] font-bold text-teal-400 mb-2 flex items-center gap-1">
+                              <i class="fas fa-satellite-dish"></i> SNS・メディア話題（リアルタイム取得）
+                              <span class="ml-1 text-[8px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-1.5 py-0.5 rounded-full">LIVE</span>
+                              <span class="ml-1 text-[8px] text-teal-300/50">クリックで入力欄にセット</span>
+                          </h4>
+                          <div id="ai-seed-media" class="flex flex-wrap gap-2"></div>
+                      </div>
+                      <!-- トレンドセクション -->
+                      <div>
+                          <h4 class="text-[10px] font-bold text-orange-400 mb-2 flex items-center gap-1">
+                              <i class="fas fa-fire"></i> 今ホットなキーワード
+                              <span class="ml-1 text-[8px] text-orange-300/60">クリックで入力欄にセット</span>
+                          </h4>
+                          <div id="ai-seed-trending" class="flex flex-wrap gap-2"></div>
+                      </div>
+                      <!-- 廃盤・生産終了セクション -->
+                      <div>
+                          <h4 class="text-[10px] font-bold text-sky-400 mb-2 flex items-center gap-1">
+                              <i class="fas fa-box"></i> 生産終了・廃番・希少品
+                              <span class="ml-1 text-[8px] text-sky-300/60">クリックで入力欄にセット</span>
+                          </h4>
+                          <div id="ai-seed-discontinued" class="flex flex-wrap gap-2"></div>
+                      </div>
+                  </div>
+                  <p id="ai-seed-empty" class="hidden text-[10px] text-slate-500 text-center py-2">AIからの応答を取得できませんでした。再度お試しください。</p>
+              </div>
+
+              <style>
+                  .seed-cat-btn { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); color: #94a3b8; }
+                  .seed-cat-btn:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+                  .seed-cat-btn.active-cat { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.5); color: #c4b5fd; }
+              </style>
               <div class="flex flex-col md:flex-row gap-3 relative z-10">
                   <div class="flex-1 relative">
                       <input id="keyword-seed-input" type="text" placeholder="例: CSM ファイズギア、ガンプラ、仮面ライダー" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-12 py-4 text-sm focus:outline-none focus:border-cyan-500/50 transition-colors placeholder:text-slate-600">
@@ -162,21 +468,52 @@
                       <span class="text-[11px] text-slate-400">ジャンル別に表示</span>
                   </label>
               </div>
-              <div id="keyword-research-result" class="hidden mt-6 space-y-6">
-                  <div id="keyword-profit-section" class="hidden bg-gradient-to-r from-amber-900/20 to-amber-800/10 border border-amber-500/30 rounded-xl p-4">
-                      <h3 class="text-[11px] font-bold text-amber-400 mb-2"><i class="fas fa-yen-sign mr-1"></i> 稼ぎやすい候補（現在の日本で需要が高い・利益が出やすい）</h3>
+              <div id="keyword-research-result" class="hidden mt-6 space-y-5">
+
+                  <!-- トレンド分析パネル -->
+                  <div id="keyword-trend-panel" class="hidden rounded-xl border border-purple-500/30 bg-purple-900/10 overflow-hidden">
+                      <div class="px-4 py-3 border-b border-purple-500/20 flex items-center gap-2">
+                          <i class="fas fa-fire text-purple-400 text-xs"></i>
+                          <span class="text-[11px] font-bold text-purple-400 uppercase tracking-wider">AIトレンド分析</span>
+                          <span class="ml-auto text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full">リアルタイム</span>
+                      </div>
+                      <div class="p-4 space-y-3">
+                          <p id="keyword-trend-summary" class="text-[11px] text-slate-300 leading-relaxed italic"></p>
+                          <div id="keyword-trend-hotitems" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2"></div>
+                      </div>
+                  </div>
+
+                  <!-- 利ザヤキーワード（スコア付き詳細カード） -->
+                  <div id="keyword-profit-section" class="hidden">
+                      <div class="flex items-center gap-2 mb-3">
+                          <i class="fas fa-yen-sign text-amber-400 text-xs"></i>
+                          <h3 class="text-[11px] font-bold text-amber-400 uppercase tracking-wider">稼ぎやすいキーワード（利ザヤ重視）</h3>
+                      </div>
+                      <!-- スコア付きカード表示 -->
+                      <div id="keyword-profit-cards" class="hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-3"></div>
+                      <!-- チップ表示（詳細なしのとき） -->
                       <ul id="keyword-profit-list" class="flex flex-wrap gap-2"></ul>
                   </div>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="keyword-flat-section">
+
+                  <!-- Web + AI サジェスト -->
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="keyword-flat-section">
                       <div class="bg-slate-900/50 border border-slate-600 rounded-xl p-4">
-                          <h3 class="text-[11px] font-bold text-slate-400 mb-2"><i class="fas fa-globe mr-1"></i> Webサジェスト候補</h3>
+                          <h3 class="text-[11px] font-bold text-slate-400 mb-3 flex items-center gap-1">
+                              <i class="fas fa-globe mr-1"></i> Webサジェスト候補
+                              <span id="keyword-web-count" class="ml-auto text-[9px] bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full"></span>
+                          </h3>
                           <ul id="keyword-web-list" class="flex flex-wrap gap-2"></ul>
                       </div>
                       <div class="bg-slate-900/50 border border-cyan-500/20 rounded-xl p-4">
-                          <h3 class="text-[11px] font-bold text-cyan-400 mb-2"><i class="fas fa-robot mr-1"></i> AI候補</h3>
+                          <h3 class="text-[11px] font-bold text-cyan-400 mb-3 flex items-center gap-1">
+                              <i class="fas fa-robot mr-1"></i> AI候補
+                              <span id="keyword-ai-count" class="ml-auto text-[9px] bg-cyan-900/30 text-cyan-500 border border-cyan-500/20 px-2 py-0.5 rounded-full"></span>
+                          </h3>
                           <ul id="keyword-ai-list" class="flex flex-wrap gap-2"></ul>
                       </div>
                   </div>
+
+                  <!-- ジャンル別 -->
                   <div id="keyword-by-genre-section" class="hidden">
                       <h3 class="text-[11px] font-bold text-cyan-400 mb-3"><i class="fas fa-layer-group mr-1"></i> ジャンル別キーワード</h3>
                       <div id="keyword-by-genre-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -261,20 +598,48 @@
 
           <!-- 落札履歴テーブル -->
           <div class="glass rounded-xl border border-white/5 overflow-hidden">
-            <div class="px-4 py-3 border-b border-white/5 flex items-center gap-2">
-              <i class="fas fa-history text-slate-400 text-xs"></i>
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">直近の落札履歴</span>
+            <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-history text-slate-400 text-xs"></i>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">直近の落札履歴（ヤフオク）</span>
+              </div>
+              <span id="pr-yahoo-count" class="text-[9px] bg-slate-800 text-slate-400 border border-slate-700 rounded-full px-2 py-0.5"></span>
             </div>
-            <div class="max-h-64 overflow-y-auto custom-scrollbar">
+            <div class="max-h-72 overflow-y-auto custom-scrollbar">
               <table class="w-full text-left border-collapse">
                 <thead class="bg-slate-900 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0">
                   <tr>
+                    <th class="py-2 px-3 w-12">画像</th>
                     <th class="py-2 px-3">商品名</th>
                     <th class="py-2 px-3 text-right w-24">落札価格</th>
                     <th class="py-2 px-3 text-right w-12">詳細</th>
                   </tr>
                 </thead>
                 <tbody id="pr-items-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ラクマ販売中一覧テーブル -->
+          <div id="pr-rakuma-table" class="hidden glass rounded-xl border border-cyan-500/20 overflow-hidden">
+            <div class="px-4 py-3 border-b border-cyan-500/20 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-shopping-bag text-cyan-400 text-xs"></i>
+                <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">現在の販売中リスト（ラクマ）</span>
+              </div>
+              <span id="pr-rakuma-count" class="text-[9px] bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 rounded-full px-2 py-0.5"></span>
+            </div>
+            <div class="max-h-72 overflow-y-auto custom-scrollbar">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-900/80 text-[9px] text-slate-500 uppercase tracking-wider sticky top-0">
+                  <tr>
+                    <th class="py-2 px-3 w-12">画像</th>
+                    <th class="py-2 px-3">商品名</th>
+                    <th class="py-2 px-3 text-right w-24">価格</th>
+                    <th class="py-2 px-3 text-right w-12">詳細</th>
+                  </tr>
+                </thead>
+                <tbody id="pr-rakuma-body"></tbody>
               </table>
             </div>
           </div>
@@ -350,27 +715,53 @@
 
       <div id="view-settings" class="hidden space-y-8 animate-in fade-in duration-300">
           <section class="glass rounded-2xl p-6 shadow-2xl border border-white/5">
-              <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6"><i class="fas fa-cog mr-1"></i> システム設定</h2>
-              
-              <div class="p-6 border border-white/5 bg-slate-900/50 rounded-xl">
+              <h2 class="text-xs font-bold uppercase tracking-widest mb-6" style="color:var(--text-secondary)"><i class="fas fa-cog mr-1"></i> システム設定</h2>
+
+              <!-- テーマ設定 -->
+              <div class="p-5 border rounded-xl mb-4" style="border-color:var(--border-subtle);background:var(--bg-elevated)">
+                  <h3 class="text-sm font-bold text-violet-400 mb-1"><i class="fas fa-palette mr-1"></i> テーマカラー</h3>
+                  <p class="text-[11px] mb-4" style="color:var(--text-secondary)">好みの画面テーマを選択してください。選択は自動保存されます。</p>
+                  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <button data-theme-name="dark"     class="theme-swatch theme-btn flex flex-col items-center gap-2 p-3 rounded-xl border transition-all" style="background:linear-gradient(135deg,#0a0f1d,#1e3a5f);border-color:rgba(255,255,255,0.1)">
+                          <span class="w-6 h-6 rounded-full border-2 border-white/30" style="background:linear-gradient(135deg,#0a0f1d,#1e3a5f)"></span>
+                          <span class="text-[10px] font-bold text-white/70">Dark</span>
+                      </button>
+                      <button data-theme-name="midnight" class="theme-swatch theme-btn flex flex-col items-center gap-2 p-3 rounded-xl border transition-all" style="background:linear-gradient(135deg,#0d0022,#3b1f6e);border-color:rgba(139,92,246,0.2)">
+                          <span class="w-6 h-6 rounded-full border-2 border-purple-400/40" style="background:linear-gradient(135deg,#0d0022,#3b1f6e)"></span>
+                          <span class="text-[10px] font-bold text-purple-300/70">Midnight</span>
+                      </button>
+                      <button data-theme-name="ocean"    class="theme-swatch theme-btn flex flex-col items-center gap-2 p-3 rounded-xl border transition-all" style="background:linear-gradient(135deg,#020c18,#0e4a72);border-color:rgba(14,165,233,0.2)">
+                          <span class="w-6 h-6 rounded-full border-2 border-sky-400/40" style="background:linear-gradient(135deg,#020c18,#0e4a72)"></span>
+                          <span class="text-[10px] font-bold text-sky-300/70">Ocean</span>
+                      </button>
+                      <button data-theme-name="forest"   class="theme-swatch theme-btn flex flex-col items-center gap-2 p-3 rounded-xl border transition-all" style="background:linear-gradient(135deg,#030f09,#064e2c);border-color:rgba(16,185,129,0.2)">
+                          <span class="w-6 h-6 rounded-full border-2 border-emerald-400/40" style="background:linear-gradient(135deg,#030f09,#064e2c)"></span>
+                          <span class="text-[10px] font-bold text-emerald-300/70">Forest</span>
+                      </button>
+                      <button data-theme-name="light"    class="theme-swatch theme-btn flex flex-col items-center gap-2 p-3 rounded-xl border transition-all" style="background:linear-gradient(135deg,#f1f5f9,#cbd5e1);border-color:rgba(0,0,0,0.1)">
+                          <span class="w-6 h-6 rounded-full border-2 border-slate-400/50" style="background:linear-gradient(135deg,#f1f5f9,#e2e8f0)"></span>
+                          <span class="text-[10px] font-bold text-slate-600">Light</span>
+                      </button>
+                  </div>
+              </div>
+
+              <div class="p-6 border rounded-xl" style="border-color:var(--border-subtle);background:var(--bg-elevated)">
                   <h3 class="text-sm font-bold text-emerald-400 mb-2"><i class="fab fa-line mr-1"></i> LINE連携設定</h3>
-                  <p class="text-[11px] text-slate-400 mb-5 leading-relaxed">
+                  <p class="text-[11px] mb-5 leading-relaxed" style="color:var(--text-secondary)">
                       ヤフオクの予算超過や終了前通知、プレバンの在庫変動を受け取るには、LINE USER IDを登録してください。<br>
                       <span class="text-blue-400">※LINE Developers等のプロファイルから取得したID（Uから始まる文字列）を入力します。</span>
                   </p>
-                  
                   <div class="flex flex-col sm:flex-row gap-3">
                       <div class="flex flex-1 gap-2">
-                          <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 text-white">
+                          <input id="line-id-input" type="text" placeholder="Uxxxxxxxxxxxx..." class="flex-1 rounded-lg px-4 py-3 text-sm focus:outline-none" style="background:var(--bg-input);border:1px solid var(--border-ui);color:var(--text-primary)">
                           <button id="save-line-btn" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-lg text-sm font-bold text-white transition-all shadow-lg">保存</button>
                       </div>
-                      <button id="test-line-btn" class="text-xs text-slate-300 hover:text-white transition-colors flex items-center gap-2 justify-center px-4 py-3 border border-dashed border-slate-600 hover:border-slate-400 rounded-lg whitespace-nowrap">
+                      <button id="test-line-btn" class="text-xs transition-colors flex items-center gap-2 justify-center px-4 py-3 border border-dashed rounded-lg whitespace-nowrap" style="color:var(--text-secondary);border-color:var(--border-ui)">
                           <i class="fas fa-paper-plane"></i> テスト送信
                       </button>
                   </div>
               </div>
-              
-              </section>
+          </section>
       </div>
 
       <div id="preview-container" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
@@ -467,46 +858,89 @@
         let currentAiRecs = []; 
         window.currentActiveItems = []; 
 
+        // =============================================
+        // チェンジログ アコーディオン
+        // =============================================
+        const changelogToggle  = document.getElementById("changelog-toggle");
+        const changelogHistory = document.getElementById("changelog-history");
+        const changelogChevron = document.getElementById("changelog-chevron");
+        if (changelogToggle) {
+            changelogToggle.addEventListener("click", () => {
+                const open = !changelogHistory.classList.contains("hidden");
+                changelogHistory.classList.toggle("hidden", open);
+                changelogChevron.className = open
+                    ? "fas fa-chevron-down ml-1"
+                    : "fas fa-chevron-up ml-1";
+                changelogToggle.innerHTML = open
+                    ? '履歴を見る <i class="fas fa-chevron-down ml-1" id="changelog-chevron"></i>'
+                    : '閉じる <i class="fas fa-chevron-up ml-1" id="changelog-chevron"></i>';
+            });
+        }
+
+        // =============================================
+        // テーマ切り替え
+        // =============================================
+        const THEME_KEY = "bidmonitor-theme";
+        const THEMES = {
+            dark:     { label: "Dark",     accent: "text-slate-300",  border: "border-slate-400"  },
+            midnight: { label: "Midnight", accent: "text-purple-400", border: "border-purple-400" },
+            ocean:    { label: "Ocean",    accent: "text-sky-400",    border: "border-sky-400"    },
+            forest:   { label: "Forest",   accent: "text-emerald-400",border: "border-emerald-400"},
+            light:    { label: "Light",    accent: "text-slate-700",  border: "border-slate-500"  },
+        };
+
+        function applyTheme(name) {
+            document.documentElement.setAttribute("data-theme", name);
+            localStorage.setItem(THEME_KEY, name);
+            document.querySelectorAll(".theme-btn").forEach(btn => {
+                btn.classList.toggle("active", btn.getAttribute("data-theme-name") === name);
+            });
+        }
+
+        // ページロード時に保存済みテーマを復元
+        applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+
+        document.querySelectorAll(".theme-btn").forEach(btn => {
+            btn.addEventListener("click", () => applyTheme(btn.getAttribute("data-theme-name")));
+        });
+
         // --- Tab Switching Logic ---
         function switchTab(tabName) {
-            const baseClass = "px-5 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
-            
-            tabMonitor.className = baseClass + " opacity-50 hover:opacity-100";
-            tabScout.className = baseClass;
-            tabActive.className = baseClass;
-            tabKeyword.className = baseClass;
-            tabProfit.className = baseClass;
-            tabYahoo.className = baseClass;
-            tabSettings.className = "px-4 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
+            const base   = "px-5 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
+            const baseSet = "px-4 py-3 text-sm font-bold border-b-2 border-transparent hover:text-slate-300 transition-colors whitespace-nowrap";
 
-            viewMonitor.classList.add('hidden');
-            viewScout.classList.add('hidden');
-            viewActive.classList.add('hidden');
-            viewKeyword.classList.add('hidden');
-            viewProfit.classList.add('hidden');
-            viewYahoo.classList.add('hidden');
-            viewSettings.classList.add('hidden');
+            // 全タブをリセット（インラインスタイルで文字色もリセット）
+            [tabScout, tabActive, tabKeyword, tabProfit, tabYahoo].forEach(t => {
+                t.className = base;
+                t.style.color = "var(--text-muted)";
+                t.style.borderBottomColor = "transparent";
+            });
+            tabMonitor.className = base + " opacity-50 hover:opacity-100";
+            tabMonitor.style.color = "var(--text-muted)";
+            tabMonitor.style.borderBottomColor = "transparent";
+            tabSettings.className = baseSet;
+            tabSettings.style.color = "var(--text-muted)";
+            tabSettings.style.borderBottomColor = "transparent";
 
-            if (tabName === 'monitor') {
-                tabMonitor.className = "px-5 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-400 transition-colors whitespace-nowrap";
-                viewMonitor.classList.remove('hidden');
-            } else if (tabName === 'scout') {
-                tabScout.className = "px-5 py-3 text-sm font-bold text-yellow-500 border-b-2 border-yellow-500 transition-colors whitespace-nowrap";
-                viewScout.classList.remove('hidden');
-            } else if (tabName === 'active') {
-                tabActive.className = "px-5 py-3 text-sm font-bold text-purple-400 border-b-2 border-purple-500 transition-colors whitespace-nowrap";
-                viewActive.classList.remove('hidden');
-            } else if (tabName === 'keyword') {
-                tabKeyword.className = "px-5 py-3 text-sm font-bold text-cyan-400 border-b-2 border-cyan-500 transition-colors whitespace-nowrap";
-                viewKeyword.classList.remove('hidden');
-            } else if (tabName === 'profit') {
-                tabProfit.className = "px-5 py-3 text-sm font-bold text-green-400 border-b-2 border-green-500 transition-colors whitespace-nowrap";
-                viewProfit.classList.remove('hidden');
-            } else if (tabName === 'yahoo') {
-                tabYahoo.className = "px-5 py-3 text-sm font-bold text-emerald-400 border-b-2 border-emerald-500 transition-colors whitespace-nowrap";
-                viewYahoo.classList.remove('hidden');
-            } else if (tabName === 'settings') {
-                tabSettings.className = "px-4 py-3 text-sm font-bold text-white border-b-2 border-white transition-colors whitespace-nowrap";
+            // 全ビューを非表示
+            [viewMonitor, viewScout, viewActive, viewKeyword, viewProfit, viewYahoo, viewSettings]
+                .forEach(v => v.classList.add('hidden'));
+
+            const activate = (tab, color, view) => {
+                tab.style.color = color;
+                tab.style.borderBottomColor = color;
+                view.classList.remove('hidden');
+            };
+
+            if      (tabName === 'scout')    activate(tabScout,    "#eab308", viewScout);
+            else if (tabName === 'active')   activate(tabActive,   "#a855f7", viewActive);
+            else if (tabName === 'keyword')  activate(tabKeyword,  "#22d3ee", viewKeyword);
+            else if (tabName === 'profit')   activate(tabProfit,   "#22c55e", viewProfit);
+            else if (tabName === 'yahoo')    activate(tabYahoo,    "#10b981", viewYahoo);
+            else if (tabName === 'monitor')  activate(tabMonitor,  "#3b82f6", viewMonitor);
+            else if (tabName === 'settings') {
+                tabSettings.style.color = "var(--text-primary)";
+                tabSettings.style.borderBottomColor = "var(--text-primary)";
                 viewSettings.classList.remove('hidden');
             }
         }
@@ -916,9 +1350,17 @@
             keywordByGenreList.innerHTML = "";
             keywordByGenreSection.classList.add("hidden");
 
+            // トレンドパネルをリセット
+            const trendPanel    = document.getElementById("keyword-trend-panel");
+            const trendSummary  = document.getElementById("keyword-trend-summary");
+            const trendHotItems = document.getElementById("keyword-trend-hotitems");
+            const profitCards   = document.getElementById("keyword-profit-cards");
+            if (trendPanel)    { trendPanel.classList.add("hidden"); trendSummary.textContent = ""; trendHotItems.innerHTML = ""; }
+            if (profitCards)   { profitCards.classList.add("hidden"); profitCards.innerHTML = ""; }
+
             try {
                 const idToken = await currentUser.getIdToken();
-                const byGenre = keywordByGenreCheckbox && keywordByGenreCheckbox.checked;
+                const byGenre     = keywordByGenreCheckbox    && keywordByGenreCheckbox.checked;
                 const focusProfit = keywordFocusProfitCheckbox && keywordFocusProfitCheckbox.checked;
                 const res = await fetch("/api/keyword-research", {
                     method: "POST",
@@ -928,23 +1370,75 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "取得に失敗しました");
 
-                if ((data.profit || []).length > 0) {
+                // ---- トレンド分析パネル ----
+                const trend = data.trend_analysis || {};
+                if (trend.summary || (trend.hot_items && trend.hot_items.length > 0)) {
+                    if (trendSummary && trend.summary) trendSummary.textContent = trend.summary;
+                    if (trendHotItems && (trend.hot_items || []).length > 0) {
+                        const scoreColor = { A: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30", B: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30", C: "text-slate-400 bg-slate-700/30 border-slate-600/30" };
+                        trendHotItems.innerHTML = (trend.hot_items || []).map(item => {
+                            const sc = item.score || "B";
+                            const col = scoreColor[sc] || scoreColor["B"];
+                            return `<div class="bg-slate-900/70 border border-white/5 rounded-lg p-3 flex flex-col gap-1">
+                                <div class="flex items-center justify-between gap-1">
+                                    <span class="text-[10px] font-bold text-white truncate">${escapeHtml(item.name || "")}</span>
+                                    <span class="shrink-0 text-[9px] font-bold border rounded px-1.5 py-0.5 ${col}">Rank ${sc}</span>
+                                </div>
+                                <p class="text-[9px] text-slate-400 leading-tight">${escapeHtml(item.reason || "")}</p>
+                                <div class="flex gap-1 mt-1">
+                                    <button type="button" data-action="active" data-keyword="${escapeAttr(item.name || '')}" class="flex-1 py-0.5 text-[9px] bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 rounded">開催中</button>
+                                    <button type="button" data-action="scout"  data-keyword="${escapeAttr(item.name || '')}" class="flex-1 py-0.5 text-[9px] bg-yellow-600/30 hover:bg-yellow-600/50 text-yellow-300 rounded">鑑定</button>
+                                </div>
+                            </div>`;
+                        }).join("");
+                    }
+                    trendPanel.classList.remove("hidden");
+                }
+
+                // ---- 利ザヤキーワード ----
+                const profitDetails = data.profit_details || [];
+                const profitKeywords = data.profit || [];
+                if (profitKeywords.length > 0) {
                     keywordProfitSection.classList.remove("hidden");
-                    data.profit.forEach(kw => {
+                    if (profitDetails.length > 0 && profitCards) {
+                        // スコア付きカード表示
+                        profitCards.classList.remove("hidden");
+                        profitCards.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-3";
+                        const scoreColor = { A: "border-emerald-500/40 bg-emerald-900/10", B: "border-yellow-500/30 bg-yellow-900/10", C: "border-slate-600/40 bg-slate-900/30" };
+                        const scoreText  = { A: "text-emerald-400", B: "text-yellow-400", C: "text-slate-400" };
+                        profitCards.innerHTML = profitDetails.map(d => {
+                            const sc = d.score || "B";
+                            return `<div class="rounded-xl border p-3 ${scoreColor[sc] || scoreColor.B} flex flex-col gap-2">
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="text-[11px] font-bold text-white leading-tight">${escapeHtml(d.name)}</p>
+                                    <span class="shrink-0 text-[10px] font-bold ${scoreText[sc] || scoreText.B}">Rank ${sc}</span>
+                                </div>
+                                <p class="text-[9px] text-slate-400 leading-tight flex-1">${escapeHtml(d.reason || "")}</p>
+                                <div class="flex gap-1 mt-auto">
+                                    <button type="button" data-action="active" data-keyword="${escapeAttr(d.name)}" class="flex-1 py-1 text-[9px] bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 rounded transition-colors">開催中</button>
+                                    <button type="button" data-action="scout"  data-keyword="${escapeAttr(d.name)}" class="flex-1 py-1 text-[9px] bg-yellow-600/30 hover:bg-yellow-600/50 text-yellow-300 rounded transition-colors">鑑定</button>
+                                    <button type="button" data-action="profit" data-keyword="${escapeAttr(d.name)}" class="flex-1 py-1 text-[9px] bg-green-600/30 hover:bg-green-600/50 text-green-300 rounded transition-colors">利ザヤ</button>
+                                </div>
+                            </div>`;
+                        }).join("");
+                    }
+                    // チップも並べて表示
+                    profitKeywords.forEach(kw => {
                         const li = makeKeywordChip(kw);
                         keywordProfitList.appendChild(li);
                     });
                 }
 
-                (data.web || []).forEach(kw => {
-                    const li = makeKeywordChip(kw);
-                    keywordWebList.appendChild(li);
-                });
-                (data.ai || []).forEach(kw => {
-                    const li = makeKeywordChip(kw);
-                    keywordAiList.appendChild(li);
-                });
+                // ---- Web + AI チップ ----
+                const webCount = document.getElementById("keyword-web-count");
+                const aiCount  = document.getElementById("keyword-ai-count");
+                if (webCount) webCount.textContent = (data.web || []).length + "件";
+                if (aiCount)  aiCount.textContent  = (data.ai  || []).length + "件";
 
+                (data.web || []).forEach(kw => { keywordWebList.appendChild(makeKeywordChip(kw)); });
+                (data.ai  || []).forEach(kw => { keywordAiList.appendChild(makeKeywordChip(kw)); });
+
+                // ---- ジャンル別 ----
                 if (byGenre && data.by_genre && Object.keys(data.by_genre).length > 0) {
                     keywordByGenreSection.classList.remove("hidden");
                     Object.entries(data.by_genre).forEach(([genre, kws]) => {
@@ -952,10 +1446,7 @@
                         card.className = "bg-slate-900/50 border border-cyan-500/20 rounded-xl p-4";
                         const ul = document.createElement("ul");
                         ul.className = "flex flex-wrap gap-2";
-                        (kws || []).forEach(kw => {
-                            const li = makeKeywordChip(kw);
-                            ul.appendChild(li);
-                        });
+                        (kws || []).forEach(kw => ul.appendChild(makeKeywordChip(kw)));
                         card.innerHTML = `<h4 class="text-[11px] font-bold text-cyan-400 mb-2 border-b border-cyan-500/20 pb-1">${escapeHtml(genre)}</h4>`;
                         card.appendChild(ul);
                         keywordByGenreList.appendChild(card);
@@ -974,7 +1465,7 @@
         keywordResearchResult.addEventListener("click", (e) => {
             const btn = e.target.closest("button[data-action][data-keyword]");
             if (!btn) return;
-            const action = btn.getAttribute("data-action");
+            const action  = btn.getAttribute("data-action");
             const keyword = btn.getAttribute("data-keyword") || "";
             if (action === "active") {
                 switchTab("active");
@@ -984,6 +1475,162 @@
                 switchTab("scout");
                 scoutInput.value = keyword;
                 scoutInput.focus();
+            } else if (action === "profit") {
+                switchTab("profit");
+                document.getElementById("profit-keyword").value = keyword;
+                document.getElementById("profit-keyword").focus();
+            }
+        });
+
+        // =====================================================
+        // AI シードキーワード候補（キーワードリサーチャー上部）
+        // =====================================================
+        let aiSeedCurrentCat = "all";
+
+        // カテゴリボタンのアクティブ切り替え
+        document.querySelectorAll(".seed-cat-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".seed-cat-btn").forEach(b => b.classList.remove("active-cat"));
+                btn.classList.add("active-cat");
+                aiSeedCurrentCat = btn.getAttribute("data-cat") || "all";
+            });
+        });
+
+        const aiSeedBtn          = document.getElementById("ai-seed-btn");
+        const aiSeedLoader       = document.getElementById("ai-seed-loader");
+        const aiSeedResult       = document.getElementById("ai-seed-result");
+        const aiSeedTrending     = document.getElementById("ai-seed-trending");
+        const aiSeedDiscontinued = document.getElementById("ai-seed-discontinued");
+        const aiSeedMedia        = document.getElementById("ai-seed-media");
+        const aiSeedMediaSection = document.getElementById("ai-seed-media-section");
+        const aiSeedEmpty        = document.getElementById("ai-seed-empty");
+        const aiSeedSources      = document.getElementById("ai-seed-sources");
+
+        // ソースバッジの色を更新
+        function updateSourceBadge(id, count) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (count > 0) {
+                el.className = "text-[9px] px-2 py-0.5 rounded-full border border-emerald-500/40 bg-emerald-900/20 text-emerald-400";
+                el.innerHTML = el.innerHTML.replace(/\(\d+\)$/, "") + ` (${count})`;
+            } else {
+                el.className = "text-[9px] px-2 py-0.5 rounded-full border border-red-500/20 text-red-400/60 line-through";
+            }
+        }
+
+        function makeSeedChip({ keyword, tag, note, heat, source, reason, type }) {
+            const sourceIconMap = {
+                "Google":  '<i class="fab fa-google text-[8px] mr-0.5"></i>',
+                "YouTube": '<i class="fab fa-youtube text-[8px] mr-0.5 text-red-400"></i>',
+                "NHK":     '<i class="fas fa-tv text-[8px] mr-0.5"></i>',
+                "TV":      '<i class="fas fa-tv text-[8px] mr-0.5"></i>',
+            };
+            const isMedia = type === "media";
+            const isHot   = type === "trending";
+            const bgBase  = isMedia
+                ? "bg-teal-900/20 border-teal-500/30 hover:bg-teal-500/20 text-teal-100"
+                : isHot
+                    ? "bg-orange-900/20 border-orange-500/30 hover:bg-orange-500/20 text-orange-200"
+                    : "bg-sky-900/20 border-sky-500/30 hover:bg-sky-500/20 text-sky-200";
+            const tagColor = isMedia ? "text-teal-400/80" : isHot ? "text-orange-400/80" : "text-sky-400/80";
+            const subText  = reason || tag || note || "";
+            const srcIcon  = sourceIconMap[source] || "";
+
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = `group flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg border text-left transition-all cursor-pointer ${bgBase}`;
+            chip.innerHTML = `
+                <div class="flex items-center gap-1.5 w-full">
+                    ${srcIcon ? `<span class="${tagColor}">${srcIcon}</span>` : ""}
+                    <span class="text-[11px] font-bold leading-tight">${escapeHtml(keyword)}</span>
+                    ${heat ? `<span class="ml-auto text-[10px] shrink-0">${heat}</span>` : ""}
+                </div>
+                ${subText ? `<span class="text-[9px] ${tagColor} leading-tight">${escapeHtml(subText)}</span>` : ""}
+            `;
+            chip.addEventListener("click", () => {
+                keywordSeedInput.value = keyword;
+                keywordSeedInput.focus();
+                keywordSeedInput.classList.add("border-cyan-400");
+                setTimeout(() => keywordSeedInput.classList.remove("border-cyan-400"), 1200);
+            });
+            return chip;
+        }
+
+        aiSeedBtn.addEventListener("click", async () => {
+            if (!currentUser) return;
+
+            const origHtml = aiSeedBtn.innerHTML;
+            aiSeedBtn.innerHTML = '<i class="fas fa-magic"></i> 取得中... <div class="loader ease-linear rounded-full border-2 border-t-2 border-white h-3 w-3"></div>';
+            aiSeedBtn.disabled = true;
+            aiSeedResult.classList.add("hidden");
+            aiSeedEmpty.classList.add("hidden");
+            aiSeedTrending.innerHTML = "";
+            aiSeedDiscontinued.innerHTML = "";
+            aiSeedMedia.innerHTML = "";
+            aiSeedMediaSection.classList.add("hidden");
+            aiSeedSources.classList.add("hidden");
+
+            // ソースバッジをリセット
+            ["src-google", "src-youtube", "src-nhk"].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.className = "text-[9px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-500";
+            });
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const res = await fetch("/api/keyword-suggestions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+                    body: JSON.stringify({ category: aiSeedCurrentCat })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "取得失敗");
+
+                const trending     = data.trending      || [];
+                const discontinued = data.discontinued  || [];
+                const mediaKws     = data.media_keywords || [];
+                const rawCounts    = data.raw_counts    || {};
+
+                // ---- ソースバッジ更新 ----
+                if (data.sources_available) {
+                    aiSeedSources.classList.remove("hidden");
+                    updateSourceBadge("src-google",  rawCounts.google  || 0);
+                    updateSourceBadge("src-youtube", rawCounts.youtube || 0);
+                    updateSourceBadge("src-nhk",     rawCounts.nhk     || 0);
+                }
+
+                if (trending.length === 0 && discontinued.length === 0 && mediaKws.length === 0) {
+                    aiSeedEmpty.classList.remove("hidden");
+                    return;
+                }
+
+                // ---- SNS・メディア話題（リアルタイム） ----
+                if (mediaKws.length > 0) {
+                    mediaKws.forEach(item => {
+                        aiSeedMedia.appendChild(makeSeedChip({ ...item, type: "media" }));
+                    });
+                    aiSeedMediaSection.classList.remove("hidden");
+                }
+
+                // ---- 今ホット ----
+                trending.forEach(item => {
+                    aiSeedTrending.appendChild(makeSeedChip({ ...item, type: "trending" }));
+                });
+
+                // ---- 廃盤・生産終了 ----
+                discontinued.forEach(item => {
+                    aiSeedDiscontinued.appendChild(makeSeedChip({ ...item, type: "discontinued" }));
+                });
+
+                aiSeedResult.classList.remove("hidden");
+
+            } catch (err) {
+                console.error("AI seed error:", err);
+                aiSeedEmpty.textContent = "エラー: " + err.message;
+                aiSeedEmpty.classList.remove("hidden");
+            } finally {
+                aiSeedBtn.innerHTML = origHtml;
+                aiSeedBtn.disabled = false;
             }
         });
 
@@ -1483,22 +2130,65 @@
                 // ---- 利益カード描画（現在選択中のタブ方向で） ----
                 renderProfitCards();
 
+                // 画像URLをバックエンドプロキシ経由に変換（Referer制限回避）
+                function proxyImg(url) {
+                    if (!url) return "";
+                    return "/api/proxy-image?url=" + encodeURIComponent(url);
+                }
+                function imgCell(url) {
+                    return url
+                        ? `<img src="${proxyImg(url)}" class="w-9 h-9 object-cover rounded border border-white/10 bg-black" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'w-9 h-9 rounded bg-slate-800 flex items-center justify-center',innerHTML:'<i class=\\'fas fa-image text-slate-600 text-[10px]\\'></i>'}));">`
+                        : `<div class="w-9 h-9 rounded bg-slate-800 flex items-center justify-center"><i class="fas fa-image text-slate-600 text-[10px]"></i></div>`;
+                }
+
                 // ---- 落札履歴 ----
                 const items = (data.yahoo_data.items || []).slice(0, 30);
+                const yahooCountEl = document.getElementById("pr-yahoo-count");
+                if (yahooCountEl) yahooCountEl.textContent = items.length + "件";
                 document.getElementById("pr-items-body").innerHTML = items.length
                     ? items.map(it => `
-                        <tr class="border-b border-white/5 hover:bg-white/[0.02]">
-                          <td class="py-2 px-3 text-[10px] text-white leading-tight">${it.title}</td>
-                          <td class="py-2 px-3 text-right font-mono text-[10px] text-white font-bold">${it.price}</td>
+                        <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td class="py-2 px-3">${imgCell(it.image)}</td>
+                          <td class="py-2 px-2 text-[10px] text-white leading-tight max-w-0"><div class="truncate">${it.title}</div></td>
+                          <td class="py-2 px-3 text-right font-mono text-[10px] text-white font-bold whitespace-nowrap">${it.price}</td>
                           <td class="py-2 px-3 text-right">
                             <a href="${it.url}" target="_blank" class="text-yellow-500 hover:text-yellow-400 text-[10px] p-1.5 hover:bg-yellow-500/10 rounded-full transition-colors inline-block">
                               <i class="fas fa-external-link-alt"></i>
                             </a>
                           </td>
                         </tr>`).join("")
-                    : `<tr><td colspan="3" class="py-4 text-center text-xs text-slate-500">データなし</td></tr>`;
+                    : `<tr><td colspan="4" class="py-4 text-center text-xs text-slate-500">データなし</td></tr>`;
 
                 profitResult.classList.remove("hidden");
+
+                // ---- ラクマ販売中一覧 ----
+                const rakumaItems = (data.rakuma_data && data.rakuma_data.items) ? data.rakuma_data.items.slice(0, 20) : [];
+                const rakumaTableEl = document.getElementById("pr-rakuma-table");
+                const rakumaBodyEl  = document.getElementById("pr-rakuma-body");
+                const rakumaCountEl = document.getElementById("pr-rakuma-count");
+                if (rakumaItems.length > 0) {
+                    rakumaCountEl.textContent = rakumaItems.length + "件";
+                    rakumaBodyEl.innerHTML = rakumaItems.map(it => {
+                        const priceNum = parseInt(it.price, 10);
+                        const priceStr = isNaN(priceNum) ? it.price : "¥" + priceNum.toLocaleString();
+                        return `
+                            <tr class="border-b border-white/5 hover:bg-cyan-500/[0.03] transition-colors">
+                                <td class="py-2 px-3">${imgCell(it.image)}</td>
+                                <td class="py-2 px-2 text-[10px] text-white leading-tight max-w-0">
+                                    <div class="truncate">${it.title}</div>
+                                </td>
+                                <td class="py-2 px-3 text-right font-mono text-[10px] text-cyan-300 font-bold whitespace-nowrap">${priceStr}</td>
+                                <td class="py-2 px-3 text-right">
+                                    <a href="${it.url}" target="_blank" rel="noopener noreferrer" class="text-cyan-500 hover:text-cyan-400 text-[10px] p-1.5 hover:bg-cyan-500/10 rounded-full transition-colors inline-block">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </td>
+                            </tr>`;
+                    }).join("");
+                    rakumaTableEl.classList.remove("hidden");
+                } else {
+                    rakumaTableEl.classList.add("hidden");
+                }
 
             } catch (err) {
                 alert("エラー: " + err.message);
